@@ -1,3 +1,5 @@
+import math
+
 import PyQt5.QtGui as designer
 from PyQt5.QtCore import Qt
 # for parcing and load ebpf type storage IO analysis
@@ -5,6 +7,12 @@ import datetime
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 import datetime as dt
+from PyQt5.QtWidgets import QHBoxLayout
+import pyqtgraph as pg
+import pandas as pd
+
+import threading
+import time
 
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
@@ -134,7 +142,11 @@ class SimulationStorageIOThread(QThread):
     main_workload_context = dict()
     workload_label = ''
     opts = dict()
+
     finished_signal = pyqtSignal(list,dict,str)
+    progressChanged = pyqtSignal(int)
+
+    result_plot_signal = pyqtSignal(list)
     file_name = ''
     status_bar =''
     global_simple_nand_config = dict()
@@ -149,6 +161,7 @@ class SimulationStorageIOThread(QThread):
     cpu_cache_list = list()
     try:
         dram_cache_list = np.array([])
+        dram_cluster_cache_list = np.array([])
     except:
         dram_cache_list = list()
 
@@ -168,8 +181,18 @@ class SimulationStorageIOThread(QThread):
     plane_event_tracker = dict()
     logic_event_tracker = dict()
     tot_cahce_hit =0
+    result_hit_ratio=dict()
+
+    result_hit_ratio_tracker = list()
+
+    lock = threading.Lock()
+
+    stop_flag = False
+
+    Simulation_job_list = list()
+
     # signal to indicate thread has finished
-    def __init__(self,result_callback,status_bar,parent=None):
+    def __init__(self,result_callback,status_bar,ui_widget,simulation_job_list,parent=None):
         super().__init__(parent=parent)
         self.opts = {
             'mem_access_arch':None,
@@ -197,9 +220,17 @@ class SimulationStorageIOThread(QThread):
             'flush_units': 192 * 4,
             'oneshot_units': 192,
         }
+        self.logic_event_tracker['hit_ratio'] = list()
 
         self.status_bar = status_bar
         self.finished_signal.connect(result_callback)
+        self.progressChanged.connect(status_bar)
+
+        self.opts['plot_sim_res_throughput'] = ui_widget[0]
+        self.opts['plot_sim_res_hit_ratio'] = ui_widget[1]
+        self.opts['txt_sim_result'] = ui_widget[2]
+
+        self.result_plot_signal.connect(self.simulation_result_plot)
 
         self.init_buffer = self.global_simple_nand_config['write_buffer']
         self.locking_write_buffer = list()
@@ -214,9 +245,15 @@ class SimulationStorageIOThread(QThread):
 
         self.tot_cahce_hit = 0
 
+        self.Simulation_job_list = simulation_job_list
+
     def run(self):
-        self.run_generate_workload()
-        self.finished_signal.emit(self.main_workload_context,self.logic_event_tracker,self.file_name)
+        for idx in range(0,len(self.Simulation_job_list)):
+            self.setData(**self.Simulation_job_list[idx])
+            self.run_generate_workload(idx+1)
+            self.finished_signal.emit(self.main_workload_context,self.logic_event_tracker,self.file_name)
+
+        self.finished.emit()
         return
 
     def setData(self,**kwargs):
@@ -252,9 +289,18 @@ class SimulationStorageIOThread(QThread):
         self.opts['dram_size'] = kwargs['dram_size']*1024
         self.opts['dram_page_units'] = kwargs['dram_page_units']
 
-        self.opts['cpu_host_interval'] = 1*0.001
+        self.opts['pattern_workload_idx'] = kwargs['pattern_workload_idx']
+        self.opts['cpu_host_interval'] = 1 * 0.001
         self.opts['address_range'] = kwargs['address_range']
 
+        self.opts['simulation_rounds'] = kwargs['simulation_rounds']
+        self.opts['address_pattern'] = kwargs['address_pattern']
+
+        self.opts['zone_id']=kwargs['zone_id']
+        self.opts['zone_size']=kwargs['zone_size']
+        self.opts['db_scan_parameter'] = kwargs['db_scan_parameter']
+        self.opts['on_highest_zone_id'] = kwargs['on_highest_zone_id']
+        self.opts['zone_intensive_ratio'] = kwargs['zone_intensive_ratio']
         # self.opts['name'] = kwargs['name']
         return
 
@@ -401,7 +447,8 @@ class SimulationStorageIOThread(QThread):
             if end_time <= cur_time:
                 if len(self.dram_cache_list) != 0:
                     try:
-                        if workload_item['cluster'] == 1 or workload_item['cluster'] == 2:
+                        # if workload_item['cluster'] == 1 or workload_item['cluster'] == 2:
+                        # if workload_item['cluster'] == -1 :
                             self.dram_cache_list.insert(0, (workload_item['offset'], workload_item['cluster']))
                     except:
                         self.dram_cache_list.insert(0, workload_item['offset'])
@@ -409,7 +456,8 @@ class SimulationStorageIOThread(QThread):
                         {'cmd': 0x9952, 'start_time': end_time, 'end_time': end_time + 1, 'desc': 'insert dram cache'})
                 else:
                     try:
-                        if workload_item['cluster'] == 1 or workload_item['cluster'] == 2:
+                        # if workload_item['cluster'] == 1 or workload_item['cluster'] == 2:
+                        # if workload_item['cluster'] == -1:
                             self.dram_cache_list.insert(0, (workload_item['offset'], workload_item['cluster']))
                     except:
                         self.dram_cache_list.insert(0, workload_item['offset'])
@@ -597,7 +645,7 @@ class SimulationStorageIOThread(QThread):
     #         self.dram_cahce_event_tracker.append({'cmd': 0x9952, 'start_time': end_time, 'end_time': end_time + 1, 'desc': 'insert dram cache'})
 
 
-    def run_generate_workload(self):
+    def run_generate_workload(self,sim_job_idx):
         #init_time us
         last_time_list = list()
         last_start_time_list = -1
@@ -607,11 +655,17 @@ class SimulationStorageIOThread(QThread):
         self.cpu_cahce_hit = 0
         self.dram_cache_hit = 0
 
+        zone_recognization_num = 5
+
         try:
             self.dram_cache_list.clear()
         except:
             self.dram_cache_list = np.array([])
+            self.dram_cluster_cache_list = np.array([])
         self.cpu_cache_list.clear()
+
+        self.opts['txt_sim_result'].clear()
+        self.result_hit_ratio_tracker.clear()
 
         self.file_name = 'MQ['+str(self.opts['max_queue'])+']_'
 
@@ -647,35 +701,74 @@ class SimulationStorageIOThread(QThread):
 
         raw_item = ''
 
-        for number in range(1000):
+        cluster_list = [0, 1, 2, 3, 4]
+        highest_zone_id_array = np.array([item[0] for item in self.opts['on_highest_zone_id']])
+        zone_real_offset = self.opts['zone_size'] * 1024 * 1024 * 2
+
+        for number in range(self.opts['simulation_rounds']):
+            if self.stop_flag:
+                return
             if raw_item !='':
                 self.baseworkload = raw_item
 
-            cluster_list = [0,1,2,3,4]
+            # highest_zone_id_array = np.fromstring(self.opts['on_highest_zone_id'],sep=',')
 
             for workload_item in self.baseworkload:
                 if len(self.dram_cache_list) > dram_cache_max_size:
                     try:
-                        self.dram_cache_list = np.delete(self.dram_cache_list, [len(self.dram_cache_list) - 1])
-                    except:
-                        del self.dram_cache_list[len(self.dram_cache_list) - 1]
-                else:
-                    try:
-                        if workload_item['cluster'] in cluster_list:
-                            # self.dram_cache_list.insert(0,(workload_item['offset'],workload_item['cluster']))
+                        try:
+                            # index = np.where(self.dram_cluster_cache_list[::-1]==-1)[0][0]
+                            #
+                            # if len(self.dram_cluster_cache_list) != len(self.dram_cache_list):
+                            #     Exception("What the fuck")
+                            #
+                            # zone_id_array = self.dram_cache_list//zone_real_offset
+                            # not_in_cache = np.setdiff1d(zone_id_array,highest_zone_id_array,assume_unique=True)
+                            # last_index = np.where(zone_id_array[::-1] == not_in_cache[-1])[0][0]
+                            last_index= np.where(~np.isin(self.dram_cluster_cache_list,highest_zone_id_array))[0][-1]
+                            self.dram_cache_list = np.delete(self.dram_cache_list, [last_index])
                             try:
-                                try:
-                                    if np.where(self.dram_cache_list == workload_item['offset'])[0][0]:
-                                        index_pop = np.where(self.dram_cache_list == workload_item['offset'])
-                                        self.dram_cache_list = np.delete(self.dram_cache_list, [index_pop])
-                                except:
-                                    None
-                                self.dram_cache_list = np.insert(self.dram_cache_list,0,workload_item['offset'])
+                                self.dram_cluster_cache_list = np.delete(self.dram_cluster_cache_list, [last_index])
                             except:
-                                if workload_item['offset'] in self.dram_cache_list:
-                                    self.dram_cache_list.pop(self.dram_cache_list.index(workload_item['offset']))
-                                self.dram_cache_list.insert(0, workload_item['offset'])
+                                None
+                        except:
+                            self.dram_cache_list = np.delete(self.dram_cache_list, [len(self.dram_cache_list) - 1])
+                            try:
+                                self.dram_cluster_cache_list = np.delete(self.dram_cluster_cache_list, [len(self.dram_cluster_cache_list) - 1])
+                            except:
+                                None
+
                     except:
+                        self.dram_cache_list = np.delete(self.dram_cache_list, [len(self.dram_cache_list) - 1])
+                        #del self.dram_cache_list[len(self.dram_cache_list) - 1]
+                else:
+                    if self.opts['mem_access_arch'] == 'NUMA': #clustering based operation...
+                        try:
+                            try:
+                                if np.where(self.dram_cache_list == workload_item['offset'])[0][0]:
+                                    index_pop = np.where(self.dram_cache_list == workload_item['offset'])
+                                    self.dram_cache_list = np.delete(self.dram_cache_list, [index_pop])
+                                    try:
+                                        self.dram_cluster_cache_list = np.delete(self.dram_cluster_cache_list, [index_pop])
+                                    except:
+                                        None
+                            except:
+                                None
+                            self.dram_cache_list = np.insert(self.dram_cache_list,0,workload_item['offset'])
+                            try:
+                                # self.dram_cluster_cache_list = np.insert(self.dram_cluster_cache_list,0, workload_item['cluster'])
+                                self.dram_cluster_cache_list = np.insert(self.dram_cluster_cache_list, 0,workload_item['zone_id'])
+                            except:
+                                None
+
+                        except: #for list
+                            None
+                        #     if workload_item['offset'] in self.dram_cache_list:
+                        #         self.dram_cache_list.pop(self.dram_cache_list.index(workload_item['offset']))
+                        #         self.dram_cluster_cache_list.pop(self.dram_cache_list.index(workload_item['offset']))
+                        #     self.dram_cache_list.insert(0, workload_item['offset'])
+                        #     self.dram_cluster_cache_list.insert(0,  workload_item['cluster'])
+                    else:
                         try:
                             try:
                                 if np.where(self.dram_cache_list==workload_item['offset'])[0][0]:
@@ -685,9 +778,10 @@ class SimulationStorageIOThread(QThread):
                                 None
                             self.dram_cache_list = np.insert(self.dram_cache_list,0,workload_item['offset'])
                         except:
-                            if workload_item['offset'] in self.dram_cache_list:
-                                self.dram_cache_list.pop(self.dram_cache_list.index(workload_item['offset']))
-                            self.dram_cache_list.insert(0, workload_item['offset'])
+                            None
+                            # if workload_item['offset'] in self.dram_cache_list:
+                            #     self.dram_cache_list.pop(self.dram_cache_list.index(workload_item['offset']))
+                            # self.dram_cache_list.insert(0, workload_item['offset'])
 
                 if len(self.cpu_cache_list) > sram_cache_max_size:
                     del self.cpu_cache_list[len(self.cpu_cache_list)-1]
@@ -699,11 +793,12 @@ class SimulationStorageIOThread(QThread):
                                 self.cpu_cache_list.pop(self.cpu_cache_list.index(workload_item['offset']))
                             self.cpu_cache_list.insert(0, workload_item['offset'])
                     except:
-                        if workload_item['offset'] in self.cpu_cache_list:
-                            self.cpu_cache_list.pop(self.cpu_cache_list.index(workload_item['offset']))
-                        self.cpu_cache_list.insert(0, workload_item['offset'])
+                        None
+                        # if workload_item['offset'] in self.cpu_cache_list:
+                        #     self.cpu_cache_list.pop(self.cpu_cache_list.index(workload_item['offset']))
+                        # self.cpu_cache_list.insert(0, workload_item['offset'])
 
-            raw_item=self.do_create_base_workload()
+            raw_item=self.do_create_base_workload(sim_job_idx)
 
             if self.opts['mem_access_arch'] == 'NUMA':
                 temp_list = list()
@@ -712,8 +807,12 @@ class SimulationStorageIOThread(QThread):
                 scaler = StandardScaler()
                 scale_data = scaler.fit_transform(temp_list)
 
-                val_eps = 0.05
-                val_min_samples = 20
+                try:
+                    val_eps=float(self.opts['db_scan_paramter'].split(',')[0].split('eps:')[1])
+                    val_min_samples = int(self.opts['db_scan_paramter'].split(',')[1].split('min_samples:')[1])
+                except:
+                    val_eps = 0.022
+                    val_min_samples = 30
 
                 dbscan = DBSCAN(eps=val_eps, min_samples=val_min_samples)
                 clusters = dbscan.fit_predict(scale_data)
@@ -749,19 +848,114 @@ class SimulationStorageIOThread(QThread):
                 #     raw_item[i]['cluster'] = clusters[i]
                 # raw_item = sorted(raw_item, key=lambda x: x['time'])
             self.main_workload_context = raw_item
-            self.status_bar.setValue(100)
+            # self.status_bar.setValue(100)
+            self.progressChanged.emit(100)
 
             if self.opts['mem_access_arch'] == 'NUMA':
-                print(number,'dram len:' + str(len(self.dram_cache_list)),'cluster_list:'+str(cluster_list),str(self.logic_event_tracker['hit_ratio']))
-            else:
-                print(number, 'dram len:' + str(len(self.dram_cache_list)), 'LRU',str(self.logic_event_tracker['hit_ratio']))
 
+                self.result_hit_ratio['index'] = number
+                self.result_hit_ratio['dram len'] = len(self.dram_cache_list)
+                self.result_hit_ratio['cluster_list'] = str(cluster_list)
+                self.result_hit_ratio['recognization_zid'] = str(highest_zone_id_array)
+                print(str(self.result_hit_ratio))
+            else:
+                self.result_hit_ratio['index'] = number
+                self.result_hit_ratio['dram len'] = len(self.dram_cache_list)
+                print('LRU',str(self.result_hit_ratio))
+
+            self.result_hit_ratio_tracker.append(self.result_hit_ratio)
+            # self.simulation_result_plot(self.logic_event_tracker['hit_ratio'])
+            if len(self.result_hit_ratio_tracker) % 3 == 0:
+                self.result_plot_signal.emit(self.result_hit_ratio_tracker)
+        title = '[RESULT]['+str(dt.datetime.now())+']'
+        title = title.replace(':','-')
+        if str(self.opts['mem_access_arch']).__contains__('NUMA'):
+            title += '_ZTBP'
+        else:
+            title += '_NORMAL'
+        title += '_'+str(self.opts['workload_quantity'])
+        title += '_'+str(self.opts['mixed_ratio'])
+        title += '_'+str(self.opts['max_queue'])
+        title += '_'+str(self.opts['host_interval'])
+
+        title += '_'+self.opts['dram_page_fault_policy']
+        title += '_'+str(int(self.opts['dram_size'])/1024)+'MB'
+        title += '_'+str(self.opts['zone_intensive_ratio'])
+        with open(title+".txt","w") as file:
+            file.write(title)
+            file.write('\nPreCondition\n')
+            file.write('\n'.join([f"{key}: {value}" for key, value in self.opts.items()]))
+            file.write('\nRESULT\n')
+            file.write('\n'.join(str(d) for d in self.result_hit_ratio_tracker))
+        file.close()
+        self.result_plot_signal.emit(self.result_hit_ratio_tracker)
         # rsponse latency calculation..
         self.rsp_latency_calculation()
 
-        return
 
-    def do_create_base_workload(self):
+        return
+    def simulation_result_plot(self,raw_data=list()):
+
+        self.lock.acquire()
+
+        self.opts['txt_sim_result'].appendPlainText(str(raw_data[-1]['cur_Sim_round'])+'/'+str(raw_data[-1]['Total_Sim_round']))
+        self.opts['txt_sim_result'].appendPlainText(str(raw_data[-1])+'\n')
+        dt_raw_data=pd.DataFrame(raw_data)
+        result_list = dict()
+        for dt_key in dt_raw_data.keys():
+            result_list[dt_key] = list(dt_raw_data[dt_key].values)
+
+        timting_list =  result_list['index']
+        throuhput_y_list = result_list['throughput(MiB/s)']
+        iops_y_list = result_list['iops(KIOPs)']
+
+
+        self.opts['plot_sim_res_throughput'].showGrid(x=True, y=True)
+        self.opts['plot_sim_res_throughput'].addLegend(size=(100,0))
+
+        self.opts['plot_sim_res_throughput'].setLabel("left",text='Throughput(MiB/s)')
+        self.opts['plot_sim_res_throughput'].setLabel("right", text='IOPs', units="K")
+
+        left_axis = pg.AxisItem("left")
+        right_axis = pg.AxisItem("right")
+        self.opts['plot_sim_res_throughput'].clear()
+        self.opts['plot_sim_res_hit_ratio'].clear()
+        self.opts['plot_sim_res_throughput'].plot(x=timting_list,y=throuhput_y_list,symbol='x',symbolPen='g',symbolBrush=0.2,name='Throughput',axisItems={"left":left_axis})
+
+        # vb2 = pg.ViewBox()
+        # vb2.clear()
+        # self.opts['plot_sim_res_throughput'].plotItem.scene().addItem(vb2)
+        # self.opts['plot_sim_res_throughput'].getAxis('right').linkToView(vb2)
+        # vb2.addItem(pg.PlotCurveItem(iops_y_list, symbol='o', symbolPen='r', symbolBrush=0.1, name='IOPs'))
+        # vb2.setXLink(self.opts['plot_sim_res_throughput'])
+
+        # def updateViews(self,vb2):
+        #     vb2.setGeometry(self.opts['plot_sim_res_throughput'].plotItem.vb.sceneBoundingRect())
+        #     vb2.linkedViewChanged(self.opts['plot_sim_res_throughput'].plotItem.vb, vb2.XAxis)
+        #
+        # updateViews(self,vb2)
+        # self.opts['plot_sim_res_throughput'].vb.sigResized.connect(updateViews)
+        # vb2.setGeometry(self.opts['plot_sim_res_throughput'].plotItem.vb.sceneBoundingRect())
+        # vb2.linkedViewChanged(self.opts['plot_sim_res_throughput'].plotItem.vb, vb2.XAxis)
+
+        self.opts['plot_sim_res_hit_ratio'].addItem(pg.BarGraphItem(x=timting_list, height=result_list['dram_hit'], symbolBrush=0.2, pen='w', width=0.3,brush='r', name='dram_hit'))
+        self.opts['plot_sim_res_hit_ratio'].addItem(pg.BarGraphItem(x=[x + 0.3 for x in timting_list] , height=result_list['cpu_hit'], symbolBrush=0.2, pen='w', width=0.3,brush='y', name='cpu_hit'))
+
+        # self.opts['plot_sim_res_throughput'].plot(x=timting_list, y=iops_y_list, symbol='o', symbolPen='r', symbolBrush=0.2,name='IOPs',axisItems={"right":right_axis})
+        # self.opts['plot_sim_res_throughput'].setLayout(hbox_throughput)
+        # if not self.opts['plot_sim_res_throughput'].layout():
+        #     hbox_throughput = QHBoxLayout()
+        #     hbox_throughput.addStretch(1)
+        #     hbox_throughput.addWidget(thr_iop_plot)
+        #      = pg.PlotWidget(self.opts['plot_sim_res_throughput'].setLayout(hbox_throughput))
+        # else:
+        #     self.opts['plot_sim_res_throughput'].addItem(x=timting_list,y=throuhput_y_list,symbol='x',symbolPen='g',symbolBrush=0.2,name='Throughput')
+        #     self.opts['plot_sim_res_throughput'].addItem(x=timting_list, y=iops_y_list, symbol='x', symbolPen='g', symbolBrush=0.2, name='IOPs', axisItems='right')
+        # # self.opts['plot_sim_res_hit_ratio'] = kwargs['plot_sim_res_hit_ratio']
+        # # self.opts['txt_sim_result'] = kwargs['txt_sim_result']
+        self.lock.release()
+        return
+    def do_create_base_workload(self,sim_job_idx):
         base_current_time = 0
         raw_item = list()
         last_time_list = list()
@@ -792,7 +986,6 @@ class SimulationStorageIOThread(QThread):
         self.logic_event_tracker['plane'] = self.plane_event_tracker
         self.logic_event_tracker['sram'] = self.cpu_cahce_event_tracker
         self.logic_event_tracker['dram'] = self.dram_cahce_event_tracker
-
         seq_offset = 0
         base_current_time = 0
         mixed_cmd = list()
@@ -807,22 +1000,49 @@ class SimulationStorageIOThread(QThread):
 
             workload_item = dict()
             workload_item['request_arrow'] = 'req'
-            self.status_bar.setValue(round((idx / (len(self.baseworkload) * 1.3)) * 100))
+            # self.status_bar.setValue(round((idx / (len(self.baseworkload) * 1.3)) * 100))
+            self.progressChanged.emit((round((idx / (len(self.baseworkload) * 1.3)) * 100)))
 
             cpu_host_interval = self.opts['cpu_host_interval']
             host_interval = self.opts['host_interval']
             address_rage = float(self.opts['address_range'])
             base_offset = address_rage * 1024 * 1024 * 1024 *1024* 2 #1TB
-            normal_dist = (address_rage/4)* 0.1 * 1024 *  1024 * 1024 *2 #0.1GB
-            workload_item['offset'] = [np.random.randint(int(base_offset))
-                                       ,np.random.randint(int(base_offset))
-                                       ,np.random.randint(int(base_offset))
-                                       ,np.random.normal(0.1 * base_offset, normal_dist, 1)[0]
-                                       ,np.random.normal(0.2 * base_offset, normal_dist, 1)[0]
-                                       ,np.random.normal(0.5 * base_offset, normal_dist, 1)[0]
-                                       ,np.random.normal(0.7 * base_offset, normal_dist, 1)[0]
-                                       ,np.random.normal(0.9 * base_offset, normal_dist, 1)[0]][np.random.randint(8)]
-            workload_item['offset'] = int((workload_item['offset'] //(8*1024))*(8*1024))
+            np.random.seed(dt.datetime.now().microsecond)
+            if str(self.opts['address_pattern']).lower().__contains__('random'):
+                workload_item['offset'] = [np.random.randint(address_rage * 1024 * 1024 * 1024 * 1024 * 2)][np.random.randint(1)]
+            elif str(self.opts['address_pattern']).lower().__contains__('sequentail'):
+                workload_item['offset'] = seq_offset
+                seq_offset = seq_offset + workload_item['length'] * 2
+            elif str(self.opts['address_pattern']).lower().__contains__('streamwritepattern') | str(self.opts['address_pattern']).lower().__contains__('zns'):
+                base_offset = address_rage * 1024 * 1024 * 1024 * 1024 * 2  # 1TB
+                normal_dist = 100 * 1 * 1 * 1024 * 1024 * 2  # 100MB
+                max_zone_id = int(base_offset // (self.opts['zone_size'] * 1024 * 1024 * 2))
+                zone_real_offset = self.opts['zone_size'] * 1024 * 1024 * 2
+                low_bound = 0
+                high_bound = base_offset
+                noraml_address_workload = list()
+                zns_address_workload = list()
+
+                noraml_address_workload.append(np.random.uniform(low=low_bound, high=high_bound, size=1))
+                for zone_id_idx in self.opts['zone_id']:
+                    if int(zone_id_idx) > max_zone_id:
+                        zone_id_idx = max_zone_id
+                    median_offset = zone_real_offset * int(zone_id_idx) + 0.5 * zone_real_offset
+                    zns_offset = np.random.normal(median_offset, (1 / 5) * zone_real_offset, 1)[0] // (1024 * 8) * (1024 * 8)
+                    zns_address_workload.append(zns_offset)
+                normal_probablity = int(self.opts['zone_intensive_ratio'].split(':')[0])
+                random_value = np.random.randint(0, 100)
+                if random_value < normal_probablity:
+                    workload_item['offset'] = noraml_address_workload[0]
+                else:
+                    workload_item['offset'] = zns_address_workload[np.random.randint(len(zns_address_workload))]
+
+            workload_item['offset'] = int((workload_item['offset'] // (1024 * 8)) * (1024 * 8))  # 4KB page mapping
+            try:
+                workload_item['zone_id'] = int(workload_item['offset'] // zone_real_offset)
+            except:
+                None
+
             workload_item['cmd'] = mixed_cmd[np.random.randint(100)]
             if workload_item['cmd'] == 0x1:
                 workload_item['length'] = self.opts['read_block_size'][
@@ -848,10 +1068,13 @@ class SimulationStorageIOThread(QThread):
 
             tot_block_size += workload_item['length']
             tot_cmd_opt +=1
+            flag_cache_hit = False
             if self.check_page_in_cache(workload_item, base_current_time):
                 base_current_time += cpu_host_interval
                 self.tot_cahce_hit += 1
-                continue
+                flag_cache_hit = True
+                workload_item['cache_hit'] = 1
+                # continue
 
             workload_item['idle'] = self.opts['idle_time']
 
@@ -880,9 +1103,12 @@ class SimulationStorageIOThread(QThread):
                 die_num = int(str(int(workload_item['offset']))[:-5])%tot_die
             except:
                 die_num = 0
-            workload_item['cmd_latency'] = self.check_and_overhead_add(workload_item['time'], self.die_allocation_unit,
+            if not flag_cache_hit:
+                workload_item['cmd_latency'] = self.check_and_overhead_add(workload_item['time'], self.die_allocation_unit,
                                                                        die_num, workload_item['cmd_latency'],
                                                                        workload_item)
+            else:
+                workload_item['cmd_latency'] = 1
             if workload_item['time'] > last_start_time_list:
                 last_start_time_list = workload_item['time']
 
@@ -928,18 +1154,21 @@ class SimulationStorageIOThread(QThread):
             # sync async
             # base_current_time = end_time
             # self.append_cache_workload(workload_item, end_time)
+
+
+        self.result_hit_ratio = {
+                'Total_Sim_round' : len(self.Simulation_job_list),
+                'cur_Sim_round' : sim_job_idx,
+                'total_ratio': self.tot_cahce_hit / tot_cmd_opt,
+                'dram_hit': round(self.dram_cache_hit/ tot_cmd_opt,2),
+                'cpu_hit': round(self.cpu_cahce_hit/ tot_cmd_opt,3),
+                'throughput(MiB/s)': int((tot_block_size / 1024 / 1024) / (end_time * 0.000001)),
+                'iops(KIOPs)': int((tot_cmd_opt) / (end_time * 0.000001) / 1000),
+            }
         try:
             self.cur_dram_cache_list(end_time)
         except:
             None
-
-        self.logic_event_tracker['hit_ratio'] = {
-            'total_ratio':self.tot_cahce_hit/tot_cmd_opt,
-            'dram_hit':self.dram_cache_hit,
-            'cpu_hit':self.cpu_cahce_hit,
-            'throughput(MiB/s)':int((tot_block_size/1024/1024)/(end_time*0.000001)),
-            'iops(KIOPs)':int((tot_cmd_opt)/(end_time*0.000001)/1000),
-        }
 
         return raw_item
 

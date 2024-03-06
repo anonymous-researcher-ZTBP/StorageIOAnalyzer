@@ -1,5 +1,8 @@
+import time
+
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem,QSizePolicy
 from PyQt5.QtCore import Qt
+from PyQt5 import QtCore
 # import qwt
 import sys
 from StorageIO_main import Ui_MainWindow
@@ -31,6 +34,12 @@ class MainWindow(QMainWindow):
     simulation_plot_class = ''
     logic_event_tracer = ''
 
+    highest_zone_id = list()
+
+    Simulation_class = ''
+
+    Simulation_job_list = list()
+
     def __init__(self):
         super().__init__()
         main_ui = Ui_MainWindow()
@@ -57,6 +66,14 @@ class MainWindow(QMainWindow):
 
         self.main_ui_object.btn_refresh_2.clicked.connect(self.on_cmd_plot_refreshed)
 
+        self.main_ui_object.btn_simulation_job_add.clicked.connect(self.on_sim_job_append)
+        self.main_ui_object.tbl_sim_model_job_list.setColumnCount(5)
+        self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(0, QTableWidgetItem(str('check')))
+        self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(1, QTableWidgetItem(str('index')))
+        self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(2, QTableWidgetItem(str('title')))
+        self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(3, QTableWidgetItem(str('round')))
+        self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(4, QTableWidgetItem(str('ratio')))
+
         # self.main_ui_object.latencyViewWidget.scene().sigMouseClicked.connect(self.mouse_clicked)
 
         self.main_ui_object.btn_simulation_execute.clicked.connect(self.on_simulation_btn_clicked)
@@ -77,7 +94,6 @@ class MainWindow(QMainWindow):
             name = f.split('/')[-1].split('.')[0]
             tbl_row_cnt = self.main_ui_object.LogListView.rowCount()
             self.main_ui_object.LogListView.insertRow(tbl_row_cnt)
-            print(f,tbl_row_cnt)
             checked_item=QTableWidgetItem()
             checked_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
             checked_item.setCheckState(Qt.Checked)
@@ -105,7 +121,7 @@ class MainWindow(QMainWindow):
         Workload_thread.start()
 
     def on_workload_gen_clicked(self):
-        genworkload_class=GnerateWorkload(self.get_gen_workload,self.main_ui_object.bar_progress_load,parent=self)
+        genworkload_class=GnerateWorkload(self.get_gen_workload,self.on_updateProgressBar,parent=self)
 
         genworkload_class.setData(
             workload_quantity=int(self.main_ui_object.edt_workload_quantity.text()),
@@ -125,6 +141,10 @@ class MainWindow(QMainWindow):
             host_worker=int(self.main_ui_object.edt_workload_host_worker.text()),
             context_id=bool(self.main_ui_object.chk_workload_context_id.isChecked()),
             context_line=int(self.main_ui_object.edt_workload_context_line.text()),
+
+            zone_intensive_ratio=str(self.main_ui_object.edt_zone_intensive_ratio.text()),
+            zone_id = list(self.main_ui_object.edt_zone_id.text().split(',')),
+            zone_size = int(self.main_ui_object.edt_zone_size.text())
         )
 
         genworkload_class.start()
@@ -253,7 +273,7 @@ class MainWindow(QMainWindow):
 
     def on_db_scan_clicked(self):
         try:
-            self.address_plot_class.test_dbscan_pattern_recoginization(self.main_ui_object.bar_progress_load,self.main_ui_object.lineEdit_4.text())
+            self.highest_zone_id = self.address_plot_class.test_dbscan_pattern_recoginization(self.on_updateProgressBar,self.main_ui_object.lineEdit_4.text())
         except:
             None
 
@@ -270,54 +290,90 @@ class MainWindow(QMainWindow):
             return self.main_ui_object.tbl_pattern_model_result_2.item()
         except:
             return 0
+    def on_delete_sim_job(self):
+        self.main_ui_object.tbl_sim_model_job_list.reset()
+        self.Simulation_job_list.clear()
+
+    def on_sim_job_append(self):
+        tbl_row_cnt = self.main_ui_object.tbl_sim_model_job_list.rowCount()
+        self.main_ui_object.tbl_sim_model_job_list.insertRow(tbl_row_cnt)
+        checked_item = QTableWidgetItem()
+        checked_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+        checked_item.setCheckState(Qt.Checked)
+        name = dict()
+        try:
+            highest_zone_id = self.highest_zone_id
+        except:
+            highest_zone_id = 0
+
+        name={
+                'mixed_ratio' : int(self.main_ui_object.edt_workload_mixed_ratio.text()),
+                'workload_quantity':int(self.main_ui_object.edt_workload_quantity.text()),
+                'idle_duration':int(self.main_ui_object.edt_workload_idle_duration.text()),
+                'idle_time':int(self.main_ui_object.edt_workload_idle_time.text()),
+                'max_queue':int(self.main_ui_object.edt_workload_max_queue.text()),
+                'read_distribution':[int(i) for i in
+                                   self.main_ui_object.edt_workload_read_distribution.text().split(',')],
+                'read_block_size':[int(i) for i in self.main_ui_object.edt_workload_read_block.text().split(',')],
+                'write_distribution':[int(i) for i in
+                                    self.main_ui_object.edt_workload_write_distribution.text().split(',')],
+                'write_block_size':[int(i) for i in self.main_ui_object.edt_workload_write_block_size.text().split(',')],
+                'host_if':self.main_ui_object.cmb_workload_host_if.currentText(),
+                'host_interval':int(self.main_ui_object.edt_workload_host_interval.text()),
+                'host_worker':int(self.main_ui_object.edt_workload_host_worker.text()),
+                'context_id':bool(self.main_ui_object.chk_workload_context_id.isChecked()),
+                'context_line':int(self.main_ui_object.edt_workload_context_line.text()),
+
+                'mem_access_arch':self.main_ui_object.cmb_cpu_architecture.currentText(),
+                'num_cpu' : int(self.main_ui_object.edt_cpu_number.text()),
+                'sram_bandwidth' : int(self.main_ui_object.edt_sram_bandwidth.text()),
+                'sram_size' : int(self.main_ui_object.edt_sram_length.text()),
+                'sram_latency' : int(self.main_ui_object.edt_sram_latency.text())*0.001,
+                'sram_page_units': int(self.main_ui_object.edt_cpu_sram_page_unit.text()),
+                'cpu_page_fault_policy' : self.main_ui_object.cmb_cpu_cahce_policy.currentText(),
+
+                'dram_page_fault_policy' : self.main_ui_object.cmb_dram_page_fault_policy.currentText(),
+                'dram_bandwidth' : int(self.main_ui_object.edt_dram__bandwidth.text()),
+                'dram_latency' : int(self.main_ui_object.edt_dram_latency.text()),
+                'dram_size' : float(self.main_ui_object.edt_dram_length.text()),
+                'dram_page_units' : int(self.main_ui_object.edt_dram_cache_page_unit.text()),
+
+                'pattern_workload_idx' : self.check_res_pattern_model_result(),
+
+                'address_range' : self.main_ui_object.edt_workload_address_range.text(),
+                'address_pattern' : self.main_ui_object.cmb_workload_address_pattern.currentText(),
+                'simulation_rounds' :int( self.main_ui_object.edt_simulation_rounds.text() ),
+
+                'zone_intensive_ratio':str(self.main_ui_object.edt_zone_intensive_ratio.text()),
+                'zone_id':list(self.main_ui_object.edt_zone_id.text().split(',')),
+                'zone_size':int(self.main_ui_object.edt_zone_size.text()),
+                'db_scan_parameter' : str(self.main_ui_object.lineEdit_4.text()),
+                'on_highest_zone_id' : highest_zone_id,
+        }
+        self.Simulation_job_list.append(name)
+        round = int( self.main_ui_object.edt_simulation_rounds.text() )
+
+        title = str(self.main_ui_object.edt_zone_intensive_ratio.text())+"_"+self.main_ui_object.edt_zone_size.text()+"_"+str(self.main_ui_object.lineEdit_4.text())
+        self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 0, checked_item)
+        self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 1, QTableWidgetItem(str(tbl_row_cnt)))
+        self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 2, QTableWidgetItem(title))
+        self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 3, QTableWidgetItem(str(round)))
+        self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 4, QTableWidgetItem(int(100/round)))
 
     def on_simulation_btn_clicked(self):
-
         try:
-            Simulation_class = SimulationStorageIOThread(self.get_simulation_workload, self.main_ui_object.bar_progress_load,
-                                                parent=self)
-            Simulation_class.set_base_workload(self.raw_workload_list)
-            Simulation_class.setData(
-                mixed_ratio = int(self.main_ui_object.edt_workload_mixed_ratio.text()),
-                workload_quantity=int(self.main_ui_object.edt_workload_quantity.text()),
-                idle_duration=int(self.main_ui_object.edt_workload_idle_duration.text()),
-                idle_time=int(self.main_ui_object.edt_workload_idle_time.text()),
-                max_queue=int(self.main_ui_object.edt_workload_max_queue.text()),
-                read_distribution=[int(i) for i in
-                                   self.main_ui_object.edt_workload_read_distribution.text().split(',')],
-                read_block_size=[int(i) for i in self.main_ui_object.edt_workload_read_block.text().split(',')],
-                write_distribution=[int(i) for i in
-                                    self.main_ui_object.edt_workload_write_distribution.text().split(',')],
-                write_block_size=[int(i) for i in self.main_ui_object.edt_workload_write_block_size.text().split(',')],
-                host_if=self.main_ui_object.cmb_workload_host_if.currentText(),
-                host_interval=int(self.main_ui_object.edt_workload_host_interval.text()),
-                host_worker=int(self.main_ui_object.edt_workload_host_worker.text()),
-                context_id=bool(self.main_ui_object.chk_workload_context_id.isChecked()),
-                context_line=int(self.main_ui_object.edt_workload_context_line.text()),
+            ui_widget = [self.main_ui_object.plot_sim_res_throughput,self.main_ui_object.plot_sim_res_hit_ratio,self.main_ui_object.txt_sim_result]
 
-                mem_access_arch=self.main_ui_object.cmb_cpu_architecture.currentText(),
-                num_cpu = int(self.main_ui_object.edt_cpu_number.text()),
-                sram_bandwidth = int(self.main_ui_object.edt_sram_bandwidth.text()),
-                sram_size = int(self.main_ui_object.edt_sram_length.text()),
-                sram_latency = int(self.main_ui_object.edt_sram_latency.text())*0.001,
-                sram_page_units= int(self.main_ui_object.edt_cpu_sram_page_unit.text()),
-                cpu_page_fault_policy = self.main_ui_object.cmb_cpu_cahce_policy.currentText(),
-
-                dram_page_fault_policy = self.main_ui_object.cmb_dram_page_fault_policy.currentText(),
-                dram_bandwidth = int(self.main_ui_object.edt_dram__bandwidth.text()),
-                dram_latency = int(self.main_ui_object.edt_dram_latency.text()),
-                dram_size = float(self.main_ui_object.edt_dram_length.text()),
-                dram_page_units = int(self.main_ui_object.edt_dram_cache_page_unit.text()),
-
-                pattern_workload_idx = self.check_res_pattern_model_result(),
-
-                address_range = self.main_ui_object.edt_workload_address_range.text(),
-
-            )
-            Simulation_class.start()
+            self.Simulation_class = SimulationStorageIOThread(self.get_simulation_workload,self.on_updateProgressBar, ui_widget, self.Simulation_job_list, parent=self)
+            self.Simulation_class.set_base_workload(self.raw_workload_list)
+            self.Simulation_class.start()
+            self.Simulation_class.finished.connect(self.simulation_operation_close)
+            self.main_ui_object.tabWidget_6.setCurrentIndex(1)
         except:
             None
-
+    def simulation_operation_close(self):
+        self.main_ui_object.txt_sim_result.insertPlainText("Simulation operation Done")
+        return
     def get_simulation_workload(self,raw_workload,logic_evt_tracker,name):
         print('Generated workload thread finished .....',name)
 
@@ -337,6 +393,9 @@ class MainWindow(QMainWindow):
         self.show_log_item()
         self.main_ui_object.bar_progress_load.setValue(0)
         return self.raw_workload_list
+
+    def on_updateProgressBar(self,value):
+        self.main_ui_object.bar_progress_load.setValue(value)
 
     def on_simulation_workload_plot(self):
         try:

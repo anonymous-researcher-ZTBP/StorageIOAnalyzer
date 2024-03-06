@@ -3,12 +3,13 @@ import pyqtgraph as pg
 from PyQt5.QtGui import QKeyEvent
 import PyQt5.QtGui as QtGui
 import PyQt5.QtCore as QtCore
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt,pyqtSignal
 from PyQt5.QtGui import QMouseEvent
 import numpy as np
 
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
+
 
 class AddressPlotWidget(pg.PlotWidget):
     raw_item = ''
@@ -20,6 +21,8 @@ class AddressPlotWidget(pg.PlotWidget):
 
     y_range_dict = dict()
     x_range_dict = dict()
+    progressChanged = pyqtSignal(int)
+
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -45,6 +48,7 @@ class AddressPlotWidget(pg.PlotWidget):
         return
 
     def test_pattern_recognization(self,status_bar,txt):
+        self.progressChanged.connect(status_bar)
         if len(self.raw_item) == 0:
             print('None of raw data')
             return
@@ -74,8 +78,16 @@ class AddressPlotWidget(pg.PlotWidget):
                 cmap = {label: np.random.choice(color_list) for label in set(clusters)}
 
                 clusters_group = dict()
+                zone_freq_info = dict()
                 for i in range(scale_data.shape[0]):
                     self.raw_item[i]['cluster'] = clusters[i]
+                    #second filter
+                    if clusters[i] !=-1:
+                        try:
+                            zone_freq_info[self.raw_item[i]['zone_id']] += 1
+                        except:
+                            zone_freq_info[self.raw_item[i]['zone_id']] = 1
+
                     if not  clusters[i] in clusters_group:
                         clusters_group[clusters[i]] = {'x':[scale_data[i, 0]],'y':[scale_data[i, 1]]}
 
@@ -83,7 +95,10 @@ class AddressPlotWidget(pg.PlotWidget):
                         clusters_group[clusters[i]]['x'].append(scale_data[i, 0])
                         clusters_group[clusters[i]]['y'].append(scale_data[i, 1])
                     # scatter.addPoints(x=[scale_data[i, 0]], y=[scale_data[i, 1]], brush=brush)
-                    status_bar.setValue(round((i/(scale_data.shape[0]*1.0))*100))
+                    # status_bar.setValue(round((i/(scale_data.shape[0]*1.0))*100))
+                    self.progressChanged.emit(round((i/(scale_data.shape[0]*1.0))*100))
+
+                # print(sorted(zone_freq_info.items(), key=lambda x: x[1], reverse=True)[:5])
 
                 for group_idx in clusters_group.keys():
                     cmd_name = self.workload_instance.get_typeof_symbol(cmd_idx)['NAME'] + 'DB_SCAN_' +str(group_idx)
@@ -93,8 +108,10 @@ class AddressPlotWidget(pg.PlotWidget):
                     scatter = pg.ScatterPlotItem(symbol=cmd_symbol, name=cmd_name,x=clusters_group[group_idx]['x'],y=clusters_group[group_idx]['y'],brush=brush)
                     self.plotItem.addItem(scatter)
 
-                status_bar.setValue(0)
-            return
+                # status_bar.setValue(0)
+                self.progressChanged.emit(0)
+            threshould_intensive_zone = scale_data.shape[0] / 100
+            return sorted([(k, v) for k, v in zone_freq_info.items() if v > threshould_intensive_zone ], key=lambda x: x[1], reverse=True)
 
     def show_plot_item(self,*args):
         self.clear()

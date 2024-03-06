@@ -348,6 +348,16 @@ class SimulationTimingPlotWidget(pg.PlotWidget):
                         None
 
                     try:
+                        if item['cache_hit'] == 1:
+                            text_item = pg.TextItem('Hit', (255, 160, 122))
+                            text_item.setPos(item['time'], cmdq + 1)
+                            text_item.setFont(QtGui.QFont('Times', 10))
+                            # text_item.setTextWidth(4)
+                            self.plotItem.addItem(text_item)
+                    except:
+                        None
+
+                    try:
                         if item['etc'] != '':
                             text_item=pg.TextItem(item['etc'],(255,160,122))
                             text_item.setPos(item['time'],cmdq+1)

@@ -35,5 +35,7 @@ class AddressView():
         self.Duplicated_plot.show_plot_item(self.raw_item)
 
     def test_dbscan_pattern_recoginization(self,status_bar,txt):
+        summary_text = self.Address_plot.test_pattern_recognization(status_bar, txt)
+        self.summary_text_box.setPlainText(str(summary_text))
+        return summary_text
 
-        self.Address_plot.test_pattern_recognization(status_bar,txt)

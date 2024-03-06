@@ -1,10 +1,9 @@
-import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
 import numpy as np
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import QObject, pyqtSignal
-from pyqtgraph import ViewBox
-from HistogramPlotWidget import HistogramPlotwidget
+
+from PyQt5.QtWidgets import QHBoxLayout
 
 class SimTimingView():
 

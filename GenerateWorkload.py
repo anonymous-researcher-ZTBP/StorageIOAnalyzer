@@ -1,3 +1,5 @@
+import random
+
 import PyQt5.QtGui as designer
 from PyQt5.QtCore import Qt
 # for parcing and load ebpf type storage IO analysis
@@ -5,6 +7,8 @@ import datetime
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal, QObject
 import datetime as dt
+import math
+from EventManager.Simple_FTL_core import Simple_FTL_core as FTL
 
 class GnerateWorkloadType:
     main_workload_context = dict()
@@ -83,6 +87,8 @@ class GnerateWorkload(QThread):
     workload_label = ''
     opts = dict()
     finished_signal = pyqtSignal(list,dict,str)
+    progressChagned = pyqtSignal(int)
+
     file_name = ''
     status_bar =''
     die_event_tracker = dict()
@@ -119,12 +125,13 @@ class GnerateWorkload(QThread):
         }
         self.status_bar = status_bar
         self.finished_signal.connect(result_callback)
+        self.progressChagned.connect(status_bar)
 
         self.global_simple_nand_config = {
             't_Dout': 7,
             't_DIn': 7 * 48,
             # 'write_buffer': 2304 ,
-            'write_buffer': 2304 ,
+            'write_buffer': 23040 ,
             'buffing_overhead':20,
             'cur_prog_nand_num':0,
             'num_die':32,
@@ -160,6 +167,11 @@ class GnerateWorkload(QThread):
         self.opts['context_id'] = kwargs['context_id']
         self.opts['context_line'] = kwargs['context_line']
         self.opts['context_id'] = kwargs['context_id']
+
+        self.opts['zone_id'] = kwargs['zone_id']
+        self.opts['zone_intensive_ratio'] = kwargs['zone_intensive_ratio']
+        self.opts['zone_size'] = kwargs['zone_size']
+
         # self.opts['name'] = kwargs['name']
         return
 
@@ -230,6 +242,24 @@ class GnerateWorkload(QThread):
                     self.locking_write_buffer.append((cur_time + self.global_simple_nand_config['buffing_overhead'], workload['length'] / 1024))
                     return cur_time + self.global_simple_nand_config['buffing_overhead']
 
+    def read_overhead_operation(self,cur_time,die_access_control,die_num,overhead,t_Dout,workload):
+        if cur_time > die_access_control[die_num]:
+            self.die_event_tracker[die_num].append(
+                {'cmd': 0x9901, 'start_time': cur_time, 'end_time': cur_time + (overhead - t_Dout)})
+            self.die_event_tracker[die_num].append(
+                {'cmd': 0x9902, 'start_time': cur_time + (overhead - t_Dout), 'end_time': cur_time + overhead})
+            die_access_control[die_num] = cur_time + overhead + 2
+            # workload['etc'] = ''
+            return overhead + 2
+        else:
+            self.die_event_tracker[die_num].append({'cmd': 0x9901, 'start_time': die_access_control[die_num],
+                                                    'end_time': die_access_control[die_num] + (overhead - t_Dout)})
+            self.die_event_tracker[die_num].append(
+                {'cmd': 0x9902, 'start_time': die_access_control[die_num] + (overhead - t_Dout),
+                 'end_time': die_access_control[die_num] + overhead})
+            die_access_control[die_num] = die_access_control[die_num] + overhead + 2
+            workload['etc'] = 'Die#' + str(die_num) + ': Collision'
+            return die_access_control[die_num] - cur_time + 2
 
     def check_and_overhead_add(self,cur_time,die_access_control=dict(),die_num=int,overhead=int,workload=dict(),write_unit=int):
 
@@ -238,27 +268,20 @@ class GnerateWorkload(QThread):
         t_In = self.global_simple_nand_config['t_DIn']
 
         if workload['cmd'] == 0x1:  # read
-            if cur_time > die_access_control[die_num]:
-                self.die_event_tracker[die_num].append({'cmd': 0x9901, 'start_time': cur_time,'end_time': cur_time + (overhead-t_Dout) })
-                self.die_event_tracker[die_num].append({'cmd': 0x9902, 'start_time': cur_time + (overhead-t_Dout), 'end_time': cur_time + overhead })
-                die_access_control[die_num] = cur_time + overhead + 2
-                # workload['etc'] = ''
-                return overhead + 2
 
-        # elif workload['cmd'] == 0x10:
-        #     # workload['etc'] = ''
-        #     return self.check_nand_program(cur_time,-1,die_access_control,overhead,workload,-1,-1)
-
-            else:
-                self.die_event_tracker[die_num].append({'cmd': 0x9901, 'start_time': die_access_control[die_num],'end_time': die_access_control[die_num] + (overhead-t_Dout) })
-                self.die_event_tracker[die_num].append({'cmd': 0x9902, 'start_time': die_access_control[die_num] +(overhead-t_Dout), 'end_time': die_access_control[die_num] + overhead })
-                die_access_control[die_num] = die_access_control[die_num] + overhead + 2
-                workload['etc'] = 'Die#' + str(die_num) + ': Collision'
-                return die_access_control[die_num] - cur_time + 2
+            # split_4k_length = workload['length'] // 4096
+            # cmd_latency_list=list()
+            # if split_4k_length > 1:
+            #     for idx in range(split_4k_length):
+            #         # die_num=np.random.randint(self.global_simple_nand_config['num_die'])
+            #         cmd_latency_list.append(self.read_overhead_operation(cur_time, die_access_control, die_num, overhead, t_Dout, workload))
+            #     return np.max(cmd_latency_list)
+            # else:
+            return self.read_overhead_operation(cur_time, die_access_control, die_num, overhead, t_Dout, workload)
 
         elif workload['cmd'] == 0x10:
             # workload['etc'] = ''
-            write_bffer=self.global_simple_nand_config['write_buffer']
+            write_bffer = self.global_simple_nand_config['write_buffer']
 
             #free
             for item in self.locking_write_buffer[:]:
@@ -267,12 +290,17 @@ class GnerateWorkload(QThread):
                     self.locking_write_buffer.remove(item)
 
             self.global_simple_nand_config['write_buffer'] = write_bffer - workload['length'] / 1024
+
+            #event based operation
+            # cmd_latency = FTL()
+
+            #simple NAND modeling
             cmd_latency = self.check_nand_program(cur_time, -1, die_access_control, overhead, workload, -1, -1)
 
             return cmd_latency-cur_time
 
     def run_generate_workload(self):
-
+        FTL()
         #init_time us
         last_time_list = list()
         last_start_time_list = -1
@@ -311,14 +339,16 @@ class GnerateWorkload(QThread):
         list_num = 0
         self.file_name += '' + str(self.opts['address_range']) + 'TB_'
         self.file_name += 'Pattern[' + str(self.opts['address_pattern']) + ']_'
+        zns_info = dict()
+        zns_before_info = dict()
         for idx in range(0,self.opts['workload_quantity']):
 
             # if idx % num_idx_tot == 0:
             #     raw_item = raw_item_dict[list_num]
             #     list_num +=1
 
-            self.status_bar.setValue(round((idx/(self.opts['workload_quantity']*1.3))*100))
-
+            # self.status_bar.setValue
+            self.progressChagned.emit(round((idx/(self.opts['workload_quantity']*1.3))*100))
             host_interval = self.opts['host_interval']
             workload_item = dict()
             workload_item['request_arrow'] = 'req'
@@ -335,7 +365,7 @@ class GnerateWorkload(QThread):
                 workload_item['cmd_latency'] = overhead
 
             elif workload_item['cmd'] == 0x10:
-                workload_item['length'] = self.opts['write_block_size'][np.random.randint(len(self.opts['read_block_size']))]
+                workload_item['length'] = self.opts['write_block_size'][np.random.randint(len(self.opts['write_block_size']))]
                 min = int(self.opts['write_distribution'][0])
                 median = int(self.opts['write_distribution'][1])
                 worst = int(self.opts['write_distribution'][2])
@@ -343,19 +373,43 @@ class GnerateWorkload(QThread):
 
             if str(self.opts['address_pattern']).lower().__contains__('random'):
                 workload_item['offset'] = [np.random.randint(address_rage*1024*1024*1024*1024*2)][np.random.randint(1)]
-            if str(self.opts['address_pattern']).lower().__contains__('sequentail'):
+            elif str(self.opts['address_pattern']).lower().__contains__('sequentail'):
                 workload_item['offset'] = seq_offset
                 seq_offset = seq_offset + workload_item['length'] * 2
-            else:
+            elif str(self.opts['address_pattern']).lower().__contains__('streamwritepattern') | str(self.opts['address_pattern']).lower().__contains__('zns'):
                 base_offset = address_rage * 1024 * 1024 * 1024 * 1024 * 2 #1TB
-                normal_dist = (address_rage/4)* 1 * 1024 * 1024 * 1024 * 2 #1GB
-                workload_item['offset'] = [np.random.randint(int(base_offset))
-                                           ,np.random.normal(0.1 * base_offset, normal_dist, 1)[0]
-                                           ,np.random.normal(0.2 * base_offset, normal_dist, 1)[0]
-                                           ,np.random.normal(0.5 * base_offset, normal_dist, 1)[0]
-                                           ,np.random.normal(0.7 * base_offset, normal_dist, 1)[0]
-                                           ,np.random.normal(0.9 * base_offset, normal_dist, 1)[0]][np.random.randint(6)]
-            workload_item['offset'] = int((workload_item['offset'] //(8*1024))*(8*1024))
+                normal_dist = 100  * 1 * 1 * 1024 * 1024 * 2 #100MB
+                max_zone_id = int(base_offset // (self.opts['zone_size'] * 1024 * 1024 * 2))
+                zone_real_offset = self.opts['zone_size'] * 1024 * 1024 * 2
+                low_bound = 0
+                high_bound = base_offset
+                noraml_address_workload = list()
+                zns_address_workload = list()
+
+                noraml_address_workload.append(np.random.uniform(low=low_bound,high=high_bound,size=1))
+                for zone_id_idx in self.opts['zone_id']:
+                    if int(zone_id_idx) > max_zone_id:
+                        zone_id_idx = max_zone_id
+                    median_offset = zone_real_offset * int(zone_id_idx) + 0.5 * zone_real_offset
+                    zns_offset = np.random.normal(median_offset, (1/5)*zone_real_offset, 1)[0] //(1024*8)*(1024*8)
+                    zns_address_workload.append(zns_offset)
+                normal_probablity = int(self.opts['zone_intensive_ratio'].split(':')[0])
+                random_value = np.random.randint(0,100)
+                if random_value < normal_probablity:
+                    workload_item['offset'] = noraml_address_workload[0]
+                else:
+                    workload_item['offset'] = zns_address_workload[np.random.randint(len(zns_address_workload))]
+
+            workload_item['offset'] = int((workload_item['offset'] //(1024*8))*(1024*8)) #4KB page mapping
+            try:
+                workload_item['zone_id'] = int(workload_item['offset'] // zone_real_offset)
+                # try:
+                #     zns_info[workload_item['zone_id']] +=1
+                # except:
+                #     zns_info[workload_item['zone_id']] = 0
+            except:
+                None
+
 
             try:
                 workload_item['idle'] = self.opts['idle_time'] if idx % self.opts['idle_duration'] == 0 else 0
@@ -442,7 +496,9 @@ class GnerateWorkload(QThread):
 
         # raw_item = sorted(raw_item, key=lambda x: x['time'])
         self.main_workload_context = raw_item
-        self.status_bar.setValue(100)
+        # self.status_bar.setValue(100)
+        # print(sorted(zns_info.items(), key=lambda x:x[1],reverse=True)[:5])
+        self.progressChagned.emit(100)
 
         # rsponse latency calculation..
         self.rsp_latency_calculation()

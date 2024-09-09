@@ -1,11 +1,11 @@
 import time
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem,QSizePolicy
+from PyQt5.QtWidgets import QApplication, QMainWindow, QTableWidgetItem,QSizePolicy,QAbstractItemView
 from PyQt5.QtCore import Qt
 from PyQt5 import QtCore
 # import qwt
 import sys
-from StorageIO_main import Ui_MainWindow
+from StorageIO_main_20240713 import Ui_MainWindow
 from LoadStorageIOThread import LoadStorageIOThread
 from latencyView import LatencyView
 from CmdtimingView import CmdTimingView
@@ -67,12 +67,14 @@ class MainWindow(QMainWindow):
         self.main_ui_object.btn_refresh_2.clicked.connect(self.on_cmd_plot_refreshed)
 
         self.main_ui_object.btn_simulation_job_add.clicked.connect(self.on_sim_job_append)
-        self.main_ui_object.tbl_sim_model_job_list.setColumnCount(5)
+        self.main_ui_object.btn_simulation_job_del.clicked.connect(self.on_delete_sim_job)
+        self.main_ui_object.tbl_sim_model_job_list.setColumnCount(6)
         self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(0, QTableWidgetItem(str('check')))
         self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(1, QTableWidgetItem(str('index')))
         self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(2, QTableWidgetItem(str('title')))
         self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(3, QTableWidgetItem(str('round')))
         self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(4, QTableWidgetItem(str('ratio')))
+        self.main_ui_object.tbl_sim_model_job_list.setHorizontalHeaderItem(5, QTableWidgetItem(str('job idx')))
 
         # self.main_ui_object.latencyViewWidget.scene().sigMouseClicked.connect(self.mouse_clicked)
 
@@ -137,7 +139,7 @@ class MainWindow(QMainWindow):
             write_distribution=[int(i) for i in self.main_ui_object.edt_workload_write_distribution.text().split(',')],
             write_block_size=[int(i) for i in self.main_ui_object.edt_workload_write_block_size.text().split(',')],
             host_if=self.main_ui_object.cmb_workload_host_if.currentText(),
-            host_interval=int(self.main_ui_object.edt_workload_host_interval.text()),
+            host_interval=float(self.main_ui_object.edt_workload_host_interval.text()),
             host_worker=int(self.main_ui_object.edt_workload_host_worker.text()),
             context_id=bool(self.main_ui_object.chk_workload_context_id.isChecked()),
             context_line=int(self.main_ui_object.edt_workload_context_line.text()),
@@ -291,8 +293,25 @@ class MainWindow(QMainWindow):
         except:
             return 0
     def on_delete_sim_job(self):
-        self.main_ui_object.tbl_sim_model_job_list.reset()
-        self.Simulation_job_list.clear()
+        delete_item_list = list()
+        while(True):
+            row_cnt = self.main_ui_object.tbl_sim_model_job_list.rowCount()
+            flag_keep = False
+            for row_idx in range(0,row_cnt):
+                if self.main_ui_object.tbl_sim_model_job_list.item(row_idx, 0).checkState() == 2 :
+                    delete_item_list.append(int(self.main_ui_object.tbl_sim_model_job_list.item(row_idx, 5).text()))
+                    self.main_ui_object.tbl_sim_model_job_list.removeRow(row_idx)
+                    flag_keep = True
+                    break
+            if(flag_keep):
+                continue
+            else:
+                break
+
+
+        for job in self.Simulation_job_list:
+            if job['job_idx'] in delete_item_list:
+                del job
 
     def on_sim_job_append(self):
         tbl_row_cnt = self.main_ui_object.tbl_sim_model_job_list.rowCount()
@@ -307,6 +326,7 @@ class MainWindow(QMainWindow):
             highest_zone_id = 0
 
         name={
+                'job_idx':len(self.Simulation_job_list),
                 'mixed_ratio' : int(self.main_ui_object.edt_workload_mixed_ratio.text()),
                 'workload_quantity':int(self.main_ui_object.edt_workload_quantity.text()),
                 'idle_duration':int(self.main_ui_object.edt_workload_idle_duration.text()),
@@ -337,6 +357,8 @@ class MainWindow(QMainWindow):
                 'dram_latency' : int(self.main_ui_object.edt_dram_latency.text()),
                 'dram_size' : float(self.main_ui_object.edt_dram_length.text()),
                 'dram_page_units' : int(self.main_ui_object.edt_dram_cache_page_unit.text()),
+                'slc_level_migration' : self.main_ui_object.chk_slc_mig.isChecked(),
+                'slc_read_time': int(self.main_ui_object.edt_slc_read_time.text()),
 
                 'pattern_workload_idx' : self.check_res_pattern_model_result(),
 
@@ -358,13 +380,26 @@ class MainWindow(QMainWindow):
         self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 1, QTableWidgetItem(str(tbl_row_cnt)))
         self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 2, QTableWidgetItem(title))
         self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 3, QTableWidgetItem(str(round)))
-        self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 4, QTableWidgetItem(int(100/round)))
+
+        self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 5, QTableWidgetItem(str(name['job_idx'])))
+        self.main_ui_object.tbl_sim_model_job_list.setItem(tbl_row_cnt, 4, QTableWidgetItem(str(100 / round)))
+
 
     def on_simulation_btn_clicked(self):
         try:
             ui_widget = [self.main_ui_object.plot_sim_res_throughput,self.main_ui_object.plot_sim_res_hit_ratio,self.main_ui_object.txt_sim_result]
 
-            self.Simulation_class = SimulationStorageIOThread(self.get_simulation_workload,self.on_updateProgressBar, ui_widget, self.Simulation_job_list, parent=self)
+            run_item_list = list()
+            for row_idx in range(0, self.main_ui_object.tbl_sim_model_job_list.rowCount()):
+                if self.main_ui_object.tbl_sim_model_job_list.item(row_idx, 0).checkState() == 2:
+                    run_item_list.append(int(self.main_ui_object.tbl_sim_model_job_list.item(row_idx, 5).text()))
+
+            run_job_list = list()
+            for job in self.Simulation_job_list:
+                if job['job_idx'] in run_item_list:
+                    run_job_list.append(job)
+
+            self.Simulation_class = SimulationStorageIOThread(self.get_simulation_workload,self.on_updateProgressBar, ui_widget, run_job_list, parent=self)
             self.Simulation_class.set_base_workload(self.raw_workload_list)
             self.Simulation_class.start()
             self.Simulation_class.finished.connect(self.simulation_operation_close)
@@ -374,7 +409,7 @@ class MainWindow(QMainWindow):
     def simulation_operation_close(self):
         self.main_ui_object.txt_sim_result.insertPlainText("Simulation operation Done")
         return
-    def get_simulation_workload(self,raw_workload,logic_evt_tracker,name):
+    def get_simulation_workload(self,raw_workload,logic_evt_tracker,name,die_event_tracker):
         print('Generated workload thread finished .....',name)
 
         tbl_row_cnt = self.main_ui_object.tbl_simulation_workload.rowCount()
@@ -388,6 +423,7 @@ class MainWindow(QMainWindow):
         self.main_ui_object.LogListView.setItem(tbl_row_cnt, 3, QTableWidgetItem('SimulatedWorkload'))
 
         self.raw_workload_list = raw_workload
+        self._die_event_tracer = die_event_tracker
         self.logic_event_tracer = logic_evt_tracker
         self.workload_instance = SimulationStorageIOType()
         self.show_log_item()

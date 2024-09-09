@@ -54,6 +54,12 @@ class GnerateWorkloadType:
                 'Symbol': 't',
                 'NAME': 'TEST03'
             },
+            0x9801: {
+                'Color': 'r',
+                'CMDQ_Color': (100, 155, 51, 23),
+                'Symbol': 't',
+                'NAME': 'SLC-tR'
+            },
             0x9901: {
                 'Color': 'r',
                 'CMDQ_Color': (153, 255,51, 100),
@@ -128,11 +134,11 @@ class GnerateWorkload(QThread):
         self.progressChagned.connect(status_bar)
 
         self.global_simple_nand_config = {
-            't_Dout': 7,
-            't_DIn': 7 * 48,
+            't_Dout': 3,
+            't_DIn': 3 * 48,
             # 'write_buffer': 2304 ,
             'write_buffer': 23040 ,
-            'buffing_overhead':20,
+            'buffing_overhead':1000,
             'cur_prog_nand_num':0,
             'num_die':32,
             'num_plane':4,
@@ -300,7 +306,7 @@ class GnerateWorkload(QThread):
             return cmd_latency-cur_time
 
     def run_generate_workload(self):
-        FTL()
+        # FTL()
         #init_time us
         last_time_list = list()
         last_start_time_list = -1
@@ -354,7 +360,6 @@ class GnerateWorkload(QThread):
             workload_item['request_arrow'] = 'req'
             workload_item['cmd'] = mixed_cmd[np.random.randint(100)]
             address_rage = float(self.opts['address_range'])
-
 
             if workload_item['cmd'] == 0x1:
                 workload_item['length'] = self.opts['read_block_size'][np.random.randint(len(self.opts['read_block_size']))]

@@ -27,7 +27,10 @@ class RectItem(pg.GraphicsObject):
     def __init__(self,*args, **kargs):
         super().__init__()
         self.picture = QtGui.QPicture()
-        self.textItem = pg.QtWidgets.QGraphicsTextItem()
+        try:
+            self.textItem = pg.QtWidgets.QGraphicsTextItem()
+        except:
+            self.textItem = pg.Qt.QtWidgets.QGraphicsTextItem()
         self._lastScene = None
         self._lastTransform = None
         self.anchor = None
@@ -45,13 +48,14 @@ class RectItem(pg.GraphicsObject):
             'mouseWidth': 8, # width of shape responding to mouse click
             'compositionMode': None,
             'skipFiniteCheck': False,
-            'segmentedLineMode': getConfigOption('segmentedLineMode'),
+            # 'segmentedLineMode': getConfigOption('segmentedLineMode'),
             'rect':None
         }
+
         if 'pen' not in kargs:
             self.opts['pen'] = fn.mkPen('w')
 
-        self.setClickable(kargs.get('clickable', False))
+        self.setClickable(kargs.get('clickable', True))
         self.setData(*args, **kargs)
         # self._generate_picture()
 
@@ -340,7 +344,6 @@ class CmdTimingPlotwidget(pg.PlotWidget):
         for cmd_idx in y_range_dict.keys():
 
             y_latency_group = y_range_dict[cmd_idx]
-
             cmd_color = self.workload_instance.get_typeof_symbol(cmd_idx)['CMDQ_Color']
             cmd_name = self.workload_instance.get_typeof_symbol(cmd_idx)['NAME']
             cmd_symbol = self.workload_instance.get_typeof_symbol(cmd_idx)['Symbol']
@@ -348,10 +351,10 @@ class CmdTimingPlotwidget(pg.PlotWidget):
             item = RectItem(x=x_range_dict,rect=y_latency_group,symbol=cmd_symbol,name=cmd_name,bursh=cmd_color)
             self.plotItem.addItem(item)
 
-        for die_num in self.die_event_tracker.keys():
+        y_range_dict = dict()
+        x_range_dict = list()
 
-            y_range_dict = dict()
-            x_range_dict = list()
+        for die_num in self.die_event_tracker.keys():
 
             for item in self.die_event_tracker[die_num]:
 
@@ -369,17 +372,18 @@ class CmdTimingPlotwidget(pg.PlotWidget):
                     else:
                         y_range_dict[cmd].append(item)
 
-            for cmd_idx in y_range_dict.keys():
+        for cmd_idx in y_range_dict.keys():
 
-                y_latency_group = y_range_dict[cmd_idx]
+            y_latency_group = y_range_dict[cmd_idx]
 
-                cmd_color = self.workload_instance.get_typeof_symbol(cmd_idx)['CMDQ_Color']
-                cmd_name = self.workload_instance.get_typeof_symbol(cmd_idx)['NAME']+str(die_num)
-                cmd_symbol = self.workload_instance.get_typeof_symbol(cmd_idx)['Symbol']
+            cmd_color = self.workload_instance.get_typeof_symbol(cmd_idx)['CMDQ_Color']
+            # cmd_name = self.workload_instance.get_typeof_symbol(cmd_idx)['NAME']+str(die_num)
+            cmd_name = self.workload_instance.get_typeof_symbol(cmd_idx)['NAME']
+            cmd_symbol = self.workload_instance.get_typeof_symbol(cmd_idx)['Symbol']
 
-                item = RectItem(x=x_range_dict,rect=y_latency_group,symbol=cmd_symbol,name=cmd_name,bursh=(cmd_color))
+            item = RectItem(x=x_range_dict,rect=y_latency_group,symbol=cmd_symbol,name=cmd_name,bursh=(cmd_color))
 
-                self.plotItem.addItem(item)
+            self.plotItem.addItem(item)
 
 
     def setworkload_instance(self,workload_instacne):

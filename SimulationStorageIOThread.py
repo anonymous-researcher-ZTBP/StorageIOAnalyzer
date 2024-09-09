@@ -61,6 +61,12 @@ class SimulationStorageIOType:
                 'Symbol': 't',
                 'NAME': 'TEST03'
             },
+            0x9801: {
+                'Color': 'r',
+                'CMDQ_Color': (100, 155, 51, 23),
+                'Symbol': 't',
+                'NAME': 'SLC-tR'
+            },
             0x9901: {
                 'Color': 'r',
                 'CMDQ_Color': (153, 255,51, 100),
@@ -143,7 +149,7 @@ class SimulationStorageIOThread(QThread):
     workload_label = ''
     opts = dict()
 
-    finished_signal = pyqtSignal(list,dict,str)
+    finished_signal = pyqtSignal(list,dict,str,dict)
     progressChanged = pyqtSignal(int)
 
     result_plot_signal = pyqtSignal(list)
@@ -207,6 +213,8 @@ class SimulationStorageIOThread(QThread):
             'dram_latency':None,
             'dram_size':None,
             'dram_page_units': None,
+            'slc_mig':None,
+            'slc_read_time':None
         }
         self.global_simple_nand_config = {
             't_Dout': 7,
@@ -251,7 +259,7 @@ class SimulationStorageIOThread(QThread):
         for idx in range(0,len(self.Simulation_job_list)):
             self.setData(**self.Simulation_job_list[idx])
             self.run_generate_workload(idx+1)
-            self.finished_signal.emit(self.main_workload_context,self.logic_event_tracker,self.file_name)
+            self.finished_signal.emit(self.main_workload_context,self.logic_event_tracker,self.file_name,self.die_event_tracker)
 
         self.finished.emit()
         return
@@ -288,6 +296,9 @@ class SimulationStorageIOThread(QThread):
         self.opts['dram_latency'] = kwargs['dram_latency']
         self.opts['dram_size'] = kwargs['dram_size']*1024
         self.opts['dram_page_units'] = kwargs['dram_page_units']
+
+        self.opts['slc_mig'] = kwargs['slc_level_migration']
+        self.opts['slc_read_time'] = kwargs['slc_read_time']
 
         self.opts['pattern_workload_idx'] = kwargs['pattern_workload_idx']
         self.opts['cpu_host_interval'] = 1 * 0.001
@@ -371,6 +382,39 @@ class SimulationStorageIOThread(QThread):
                     self.locking_write_buffer.append((cur_time + self.global_simple_nand_config['buffing_overhead'], workload['length'] / 1024))
                     return cur_time + self.global_simple_nand_config['buffing_overhead']
 
+    def read_overhead_operation(self,cur_time,die_access_control,die_num,overhead,t_Dout,workload):
+        if cur_time > die_access_control[die_num]:
+            try:
+                if workload['nand_tech'] == 'slc':
+                    self.die_event_tracker[die_num].append(
+                        # {'cmd': 0x9901, 'start_time': cur_time, 'end_time': cur_time + (overhead - t_Dout)})
+                        {'cmd': 0x9801, 'start_time': cur_time, 'end_time': cur_time + (overhead)})
+            except:
+                self.die_event_tracker[die_num].append(
+                    # {'cmd': 0x9901, 'start_time': cur_time, 'end_time': cur_time + (overhead - t_Dout)})
+                    {'cmd': 0x9901, 'start_time': cur_time, 'end_time': cur_time + (overhead)})
+            self.die_event_tracker[die_num].append(
+                {'cmd': 0x9902, 'start_time': cur_time + (overhead), 'end_time': cur_time + overhead + t_Dout})
+            die_access_control[die_num] = cur_time + overhead + t_Dout + 2
+            # workload['etc'] = ''
+            # return overhead + 2
+            return overhead + t_Dout + 2
+        else:
+            try:
+                if workload['nand_tech'] == 'slc':
+                    self.die_event_tracker[die_num].append(
+                        # {'cmd': 0x9901, 'start_time': cur_time, 'end_time': cur_time + (overhead - t_Dout)})
+                        {'cmd': 0x9801, 'start_time': die_access_control[die_num], 'end_time': die_access_control[die_num] + (overhead)})
+            except:
+                self.die_event_tracker[die_num].append(
+                    # {'cmd': 0x9901, 'start_time': cur_time, 'end_time': cur_time + (overhead - t_Dout)})
+                    {'cmd': 0x9901, 'start_time': die_access_control[die_num], 'end_time': die_access_control[die_num] + (overhead)})
+            self.die_event_tracker[die_num].append(
+                {'cmd': 0x9902, 'start_time': die_access_control[die_num] + (overhead), 'end_time': die_access_control[die_num] + overhead + t_Dout})
+            die_access_control[die_num] = die_access_control[die_num] + overhead + t_Dout + 2
+            workload['etc'] = 'Die#' + str(die_num) + ': Collision'
+
+            return die_access_control[die_num] - cur_time + 2
 
     def check_and_overhead_add(self,cur_time,die_access_control=dict(),die_num=int,overhead=int,workload=dict(),write_unit=int):
 
@@ -378,19 +422,7 @@ class SimulationStorageIOThread(QThread):
         t_In = self.global_simple_nand_config['t_DIn']
 
         if workload['cmd'] == 0x1:  # read
-            if cur_time > die_access_control[die_num]:
-                self.die_event_tracker[die_num].append({'cmd': 0x9901, 'start_time': cur_time,'end_time': cur_time + (overhead-t_Dout) })
-                self.die_event_tracker[die_num].append({'cmd': 0x9902, 'start_time': cur_time + (overhead-t_Dout), 'end_time': cur_time + overhead })
-                die_access_control[die_num] = cur_time + overhead + 2
-                # workload['etc'] = ''
-                return overhead + 2
-
-            else:
-                self.die_event_tracker[die_num].append({'cmd': 0x9901, 'start_time': die_access_control[die_num],'end_time': die_access_control[die_num] + (overhead-t_Dout) })
-                self.die_event_tracker[die_num].append({'cmd': 0x9902, 'start_time': die_access_control[die_num] +(overhead-t_Dout), 'end_time': die_access_control[die_num] + overhead })
-                die_access_control[die_num] = die_access_control[die_num] + overhead + 2
-                workload['etc'] = 'Die#' + str(die_num) + ': Collision'
-                return die_access_control[die_num] - cur_time + 2
+            return self.read_overhead_operation(cur_time, die_access_control, die_num, overhead, t_Dout, workload)
 
         elif workload['cmd'] == 0x10:
             # workload['etc'] = ''
@@ -742,7 +774,7 @@ class SimulationStorageIOThread(QThread):
                         self.dram_cache_list = np.delete(self.dram_cache_list, [len(self.dram_cache_list) - 1])
                         #del self.dram_cache_list[len(self.dram_cache_list) - 1]
                 else:
-                    if self.opts['mem_access_arch'] == 'NUMA': #clustering based operation...
+                    if self.opts['mem_access_arch'] == 'ZTBP': #clustering based operation...
                         try:
                             try:
                                 if np.where(self.dram_cache_list == workload_item['offset'])[0][0]:
@@ -798,51 +830,51 @@ class SimulationStorageIOThread(QThread):
                         #     self.cpu_cache_list.pop(self.cpu_cache_list.index(workload_item['offset']))
                         # self.cpu_cache_list.insert(0, workload_item['offset'])
 
-            raw_item=self.do_create_base_workload(sim_job_idx)
+            raw_item,die_event_tracker=self.do_create_base_workload(sim_job_idx)
 
-            if self.opts['mem_access_arch'] == 'NUMA':
-                temp_list = list()
-                for idx in range(0, len(raw_item)):
-                    temp_list.append([raw_item[idx]['time'], raw_item[idx]['offset']])
-                scaler = StandardScaler()
-                scale_data = scaler.fit_transform(temp_list)
-
-                try:
-                    val_eps=float(self.opts['db_scan_paramter'].split(',')[0].split('eps:')[1])
-                    val_min_samples = int(self.opts['db_scan_paramter'].split(',')[1].split('min_samples:')[1])
-                except:
-                    val_eps = 0.022
-                    val_min_samples = 30
-
-                dbscan = DBSCAN(eps=val_eps, min_samples=val_min_samples)
-                clusters = dbscan.fit_predict(scale_data)
-                clusters_group_offset = dict()
-                for i in range(scale_data.shape[0]):
-                    if clusters[i] == -1:
-                        raw_item[i]['cluster'] = clusters[i]
-                    if not clusters[i] in clusters_group_offset.keys():
-                        clusters_group_offset[clusters[i]] = [int(raw_item[i]['offset'])]
-                    else:
-                        clusters_group_offset[clusters[i]].append(int(raw_item[i]['offset']))
-
-                import collections
-                temp=collections.OrderedDict(sorted(clusters_group_offset.items()))
-                del temp[-1]
-                temp_key = list(temp.keys())
-                for i in range(0,len(temp_key)):
-                    for j in range(1,len(temp_key)):
-                        if temp[i][0] > temp[j][0]:
-                            temp[i],temp[j] = temp[j],temp[i]
-
-                for i in temp.keys():
-                    temp[i] = np.median(temp[i])
-
-                for item_raw in raw_item[:]:
-                    if not 'cluster' in item_raw:
-                        index_list = list()
-                        for i in temp.keys():
-                            index_list.append(np.abs(item_raw['offset']-temp[i]))
-                        item_raw['cluster'] = list(temp.keys())[index_list.index(np.min(index_list))]
+            # if self.opts['mem_access_arch'] == 'ZTBP':
+            #     temp_list = list()
+            #     for idx in range(0, len(raw_item)):
+            #         temp_list.append([raw_item[idx]['time'], raw_item[idx]['offset']])
+            #     scaler = StandardScaler()
+            #     scale_data = scaler.fit_transform(temp_list)
+            #
+            #     try:
+            #         val_eps=float(self.opts['db_scan_paramter'].split(',')[0].split('eps:')[1])
+            #         val_min_samples = int(self.opts['db_scan_paramter'].split(',')[1].split('min_samples:')[1])
+            #     except:
+            #         val_eps = 0.022
+            #         val_min_samples = 30
+            #
+            #     dbscan = DBSCAN(eps=val_eps, min_samples=val_min_samples)
+            #     clusters = dbscan.fit_predict(scale_data)
+            #     clusters_group_offset = dict()
+            #     for i in range(scale_data.shape[0]):
+            #         if clusters[i] == -1:
+            #             raw_item[i]['cluster'] = clusters[i]
+            #         if not clusters[i] in clusters_group_offset.keys():
+            #             clusters_group_offset[clusters[i]] = [int(raw_item[i]['offset'])]
+            #         else:
+            #             clusters_group_offset[clusters[i]].append(int(raw_item[i]['offset']))
+            #
+            #     import collections
+            #     temp=collections.OrderedDict(sorted(clusters_group_offset.items()))
+            #     del temp[-1]
+            #     temp_key = list(temp.keys())
+            #     for i in range(0,len(temp_key)):
+            #         for j in range(1,len(temp_key)):
+            #             if temp[i][0] > temp[j][0]:
+            #                 temp[i],temp[j] = temp[j],temp[i]
+            #
+            #     for i in temp.keys():
+            #         temp[i] = np.median(temp[i])
+            #
+            #     for item_raw in raw_item[:]:
+            #         if not 'cluster' in item_raw:
+            #             index_list = list()
+            #             for i in temp.keys():
+            #                 index_list.append(np.abs(item_raw['offset']-temp[i]))
+            #             item_raw['cluster'] = list(temp.keys())[index_list.index(np.min(index_list))]
 
                 # for i in range(scale_data.shape[0]):
                 #     raw_item[i]['cluster'] = clusters[i]
@@ -851,7 +883,7 @@ class SimulationStorageIOThread(QThread):
             # self.status_bar.setValue(100)
             self.progressChanged.emit(100)
 
-            if self.opts['mem_access_arch'] == 'NUMA':
+            if self.opts['mem_access_arch'] == 'ZTBP':
 
                 self.result_hit_ratio['index'] = number
                 self.result_hit_ratio['dram len'] = len(self.dram_cache_list)
@@ -869,10 +901,13 @@ class SimulationStorageIOThread(QThread):
                 self.result_plot_signal.emit(self.result_hit_ratio_tracker)
         title = '[RESULT]['+str(dt.datetime.now())+']'
         title = title.replace(':','-')
-        if str(self.opts['mem_access_arch']).__contains__('NUMA'):
+        if str(self.opts['mem_access_arch']).__contains__('ZTBP'):
             title += '_ZTBP'
         else:
             title += '_NORMAL'
+
+        if self.opts['slc_mig']:
+            title +='_SLCMIG'
         title += '_'+str(self.opts['workload_quantity'])
         title += '_'+str(self.opts['mixed_ratio'])
         title += '_'+str(self.opts['max_queue'])
@@ -881,7 +916,8 @@ class SimulationStorageIOThread(QThread):
         title += '_'+self.opts['dram_page_fault_policy']
         title += '_'+str(int(self.opts['dram_size'])/1024)+'MB'
         title += '_'+str(self.opts['zone_intensive_ratio'])
-        with open(title+".txt","w") as file:
+        title = title.replace(':', '_')
+        with open(str(title)+".txt","w") as file:
             file.write(title)
             file.write('\nPreCondition\n')
             file.write('\n'.join([f"{key}: {value}" for key, value in self.opts.items()]))
@@ -999,51 +1035,15 @@ class SimulationStorageIOThread(QThread):
         for idx in range(self.opts['workload_quantity']):
 
             workload_item = dict()
-            workload_item['request_arrow'] = 'req'
-            # self.status_bar.setValue(round((idx / (len(self.baseworkload) * 1.3)) * 100))
-            self.progressChanged.emit((round((idx / (len(self.baseworkload) * 1.3)) * 100)))
 
+            self.progressChanged.emit((round((idx / (len(self.baseworkload) * 1.3)) * 100)))
             cpu_host_interval = self.opts['cpu_host_interval']
             host_interval = self.opts['host_interval']
-            address_rage = float(self.opts['address_range'])
-            base_offset = address_rage * 1024 * 1024 * 1024 *1024* 2 #1TB
-            np.random.seed(dt.datetime.now().microsecond)
-            if str(self.opts['address_pattern']).lower().__contains__('random'):
-                workload_item['offset'] = [np.random.randint(address_rage * 1024 * 1024 * 1024 * 1024 * 2)][np.random.randint(1)]
-            elif str(self.opts['address_pattern']).lower().__contains__('sequentail'):
-                workload_item['offset'] = seq_offset
-                seq_offset = seq_offset + workload_item['length'] * 2
-            elif str(self.opts['address_pattern']).lower().__contains__('streamwritepattern') | str(self.opts['address_pattern']).lower().__contains__('zns'):
-                base_offset = address_rage * 1024 * 1024 * 1024 * 1024 * 2  # 1TB
-                normal_dist = 100 * 1 * 1 * 1024 * 1024 * 2  # 100MB
-                max_zone_id = int(base_offset // (self.opts['zone_size'] * 1024 * 1024 * 2))
-                zone_real_offset = self.opts['zone_size'] * 1024 * 1024 * 2
-                low_bound = 0
-                high_bound = base_offset
-                noraml_address_workload = list()
-                zns_address_workload = list()
-
-                noraml_address_workload.append(np.random.uniform(low=low_bound, high=high_bound, size=1))
-                for zone_id_idx in self.opts['zone_id']:
-                    if int(zone_id_idx) > max_zone_id:
-                        zone_id_idx = max_zone_id
-                    median_offset = zone_real_offset * int(zone_id_idx) + 0.5 * zone_real_offset
-                    zns_offset = np.random.normal(median_offset, (1 / 5) * zone_real_offset, 1)[0] // (1024 * 8) * (1024 * 8)
-                    zns_address_workload.append(zns_offset)
-                normal_probablity = int(self.opts['zone_intensive_ratio'].split(':')[0])
-                random_value = np.random.randint(0, 100)
-                if random_value < normal_probablity:
-                    workload_item['offset'] = noraml_address_workload[0]
-                else:
-                    workload_item['offset'] = zns_address_workload[np.random.randint(len(zns_address_workload))]
-
-            workload_item['offset'] = int((workload_item['offset'] // (1024 * 8)) * (1024 * 8))  # 4KB page mapping
-            try:
-                workload_item['zone_id'] = int(workload_item['offset'] // zone_real_offset)
-            except:
-                None
-
+            workload_item['request_arrow'] = 'req'
             workload_item['cmd'] = mixed_cmd[np.random.randint(100)]
+            address_rage = float(self.opts['address_range'])
+            base_offset = address_rage * 1024 * 1024 * 1024 * 1024 * 2  # 1TB
+
             if workload_item['cmd'] == 0x1:
                 workload_item['length'] = self.opts['read_block_size'][
                     np.random.randint(len(self.opts['read_block_size']))]
@@ -1066,8 +1066,44 @@ class SimulationStorageIOThread(QThread):
                      np.random.normal(median, 10, 1)[0], np.random.normal(median, 10, 1)[0],
                      np.random.normal(worst, 10, 1)[0]][np.random.randint(100) % 3]))
 
+            if str(self.opts['address_pattern']).lower().__contains__('random'):
+                workload_item['offset'] = [np.random.randint(address_rage * 1024 * 1024 * 1024 * 1024 * 2)][np.random.randint(1)]
+            elif str(self.opts['address_pattern']).lower().__contains__('sequentail'):
+                workload_item['offset'] = seq_offset
+                seq_offset = seq_offset + workload_item['length'] * 2
+            elif str(self.opts['address_pattern']).lower().__contains__('streamwritepattern') | str(self.opts['address_pattern']).lower().__contains__('zns'):
+                base_offset = address_rage * 1024 * 1024 * 1024 * 1024 * 2 #1TB
+                normal_dist = 100  * 1 * 1 * 1024 * 1024 * 2 #100MB
+                max_zone_id = int(base_offset // (self.opts['zone_size'] * 1024 * 1024 * 2))
+                zone_real_offset = self.opts['zone_size'] * 1024 * 1024 * 2
+                low_bound = 0
+                high_bound = base_offset
+                noraml_address_workload = list()
+                zns_address_workload = list()
+
+                noraml_address_workload.append(np.random.uniform(low=low_bound,high=high_bound,size=1))
+                for zone_id_idx in self.opts['zone_id']:
+                    if int(zone_id_idx) > max_zone_id:
+                        zone_id_idx = max_zone_id
+                    median_offset = zone_real_offset * int(zone_id_idx) + 0.5 * zone_real_offset
+                    zns_offset = np.random.normal(median_offset, (1/5)*zone_real_offset, 1)[0] //(1024*8)*(1024*8)
+                    zns_address_workload.append(zns_offset)
+                normal_probablity = int(self.opts['zone_intensive_ratio'].split(':')[0])
+                random_value = np.random.randint(0,100)
+                if random_value < normal_probablity:
+                    workload_item['offset'] = noraml_address_workload[0]
+                else:
+                    workload_item['offset'] = zns_address_workload[np.random.randint(len(zns_address_workload))]
+
+            workload_item['offset'] = int((workload_item['offset'] //(1024*8))*(1024*8)) #4KB page mapping
+            try:
+                workload_item['zone_id'] = int(workload_item['offset'] // zone_real_offset)
+            except:
+                None
+
+
             tot_block_size += workload_item['length']
-            tot_cmd_opt +=1
+            tot_cmd_opt += 1
             flag_cache_hit = False
             if self.check_page_in_cache(workload_item, base_current_time):
                 base_current_time += cpu_host_interval
@@ -1100,15 +1136,26 @@ class SimulationStorageIOThread(QThread):
 
             # check die collision
             try:
-                die_num = int(str(int(workload_item['offset']))[:-5])%tot_die
+                die_num = int(str(int(workload_item['offset']))[:-5]) % tot_die
             except:
                 die_num = 0
+
             if not flag_cache_hit:
-                workload_item['cmd_latency'] = self.check_and_overhead_add(workload_item['time'], self.die_allocation_unit,
-                                                                       die_num, workload_item['cmd_latency'],
-                                                                       workload_item)
+                if self.opts['slc_mig'] & workload_item['zone_id'] in np.array([item[0] for item in self.opts['on_highest_zone_id']]):
+                    workload_item['nand_tech'] = 'slc'
+                    workload_item['cmd_latency'] = int(self.opts['slc_read_time'])
+                    workload_item['cmd_latency'] = self.check_and_overhead_add(workload_item['time'],
+                                                                               self.die_allocation_unit,
+                                                                               die_num, workload_item['cmd_latency'],
+                                                                               workload_item)
+                else:
+                    workload_item['cmd_latency'] = self.check_and_overhead_add(workload_item['time'],
+                                                                               self.die_allocation_unit,
+                                                                               die_num, workload_item['cmd_latency'],
+                                                                               workload_item)
             else:
                 workload_item['cmd_latency'] = 1
+
             if workload_item['time'] > last_start_time_list:
                 last_start_time_list = workload_item['time']
 
@@ -1151,17 +1198,18 @@ class SimulationStorageIOThread(QThread):
             # raw_item.append(com_workload_item)
 
             end_time = workload_item['cmd_latency'] + workload_item['time']
-            # sync async
-            # base_current_time = end_time
-            # self.append_cache_workload(workload_item, end_time)
+        # sync async
+        # base_current_time = end_time
+        # self.append_cache_workload(workload_item, end_time)
 
 
         self.result_hit_ratio = {
                 'Total_Sim_round' : len(self.Simulation_job_list),
                 'cur_Sim_round' : sim_job_idx,
+                'total_ratio': 1,
                 'total_ratio': self.tot_cahce_hit / tot_cmd_opt,
-                'dram_hit': round(self.dram_cache_hit/ tot_cmd_opt,2),
-                'cpu_hit': round(self.cpu_cahce_hit/ tot_cmd_opt,3),
+                'dram_hit': round(self.dram_cache_hit / tot_cmd_opt, 2),
+                'cpu_hit': round(self.cpu_cahce_hit / tot_cmd_opt, 3),
                 'throughput(MiB/s)': int((tot_block_size / 1024 / 1024) / (end_time * 0.000001)),
                 'iops(KIOPs)': int((tot_cmd_opt) / (end_time * 0.000001) / 1000),
             }
@@ -1170,7 +1218,7 @@ class SimulationStorageIOThread(QThread):
         except:
             None
 
-        return raw_item
+        return raw_item,self.die_event_tracker
 
     def rsp_latency_calculation(raw_item):
         pass

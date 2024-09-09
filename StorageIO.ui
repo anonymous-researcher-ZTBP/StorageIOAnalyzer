@@ -674,312 +674,319 @@ Execute</string>
              <attribute name="title">
               <string>Simulation Parameter</string>
              </attribute>
-             <layout class="QVBoxLayout" name="verticalLayout_11">
+             <layout class="QVBoxLayout" name="verticalLayout_16">
               <item>
-               <widget class="QSplitter" name="splitter_19">
-                <property name="orientation">
-                 <enum>Qt::Vertical</enum>
-                </property>
-                <widget class="QWidget" name="layoutWidget">
-                 <layout class="QGridLayout" name="gridLayout_12">
-                  <item row="0" column="0" colspan="2">
-                   <widget class="QGroupBox" name="groupBox_10">
-                    <property name="title">
-                     <string>CPU &amp; Cache Parameters</string>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_13">
-                     <item row="1" column="4">
-                      <widget class="QLineEdit" name="edt_sram_length">
-                       <property name="text">
-                        <string>1024</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="1" colspan="2">
-                      <widget class="QLineEdit" name="edt_sram_latency">
-                       <property name="text">
-                        <string>10</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="0">
-                      <widget class="QLabel" name="label_36">
-                       <property name="text">
-                        <string>Latency(ns)</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="5">
-                      <widget class="QLabel" name="label_37">
-                       <property name="text">
-                        <string>page Units(KB)</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="6">
-                      <widget class="QLineEdit" name="edt_cpu_sram_page_unit">
-                       <property name="text">
-                        <string>4</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="0" colspan="2">
-                      <widget class="QLabel" name="label_26">
-                       <property name="text">
-                        <string>Memory Access Architecture</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="2">
-                      <widget class="QComboBox" name="cmb_cpu_architecture">
-                       <item>
-                        <property name="text">
-                         <string>NUMA</string>
-                        </property>
-                       </item>
-                       <item>
-                        <property name="text">
-                         <string>UMA</string>
-                        </property>
-                       </item>
-                      </widget>
-                     </item>
-                     <item row="0" column="3">
-                      <widget class="QLabel" name="label_27">
-                       <property name="text">
-                        <string>CPU#</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
-                      <widget class="QLabel" name="label_28">
-                       <property name="text">
-                        <string>Bandwidth(MTS)</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="4">
-                      <widget class="QLineEdit" name="edt_cpu_number">
-                       <property name="text">
-                        <string>1</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="3">
-                      <widget class="QLabel" name="label_29">
-                       <property name="text">
-                        <string>Length(KB)</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="1" colspan="2">
-                      <widget class="QLineEdit" name="edt_sram_bandwidth">
-                       <property name="text">
-                        <string>8192</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="5">
-                      <widget class="QLabel" name="label_38">
-                       <property name="text">
-                        <string>Page Fault Policy</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="6">
-                      <widget class="QComboBox" name="cmb_cpu_cahce_policy">
-                       <item>
-                        <property name="text">
-                         <string>LRU</string>
-                        </property>
-                       </item>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="1" column="0">
-                   <widget class="QGroupBox" name="groupBox_11">
-                    <property name="title">
-                     <string>DRAM Parameters</string>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_14">
-                     <item row="0" column="4">
-                      <widget class="QLineEdit" name="edt_dram_latency">
-                       <property name="text">
-                        <string>100</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="3">
-                      <widget class="QLabel" name="label_35">
-                       <property name="text">
-                        <string>Latency(ns)</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="6" column="4">
-                      <widget class="QLineEdit" name="edt_dram_cache_page_unit">
-                       <property name="text">
-                        <string>4</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="1">
-                      <widget class="QComboBox" name="cmb_dram_page_fault_policy">
-                       <item>
-                        <property name="text">
-                         <string>LRU</string>
-                        </property>
-                       </item>
-                       <item>
-                        <property name="text">
-                         <string>FIFO</string>
-                        </property>
-                       </item>
-                       <item>
-                        <property name="text">
-                         <string>OPT</string>
-                        </property>
-                       </item>
-                       <item>
-                        <property name="text">
-                         <string>LFU</string>
-                        </property>
-                       </item>
-                      </widget>
-                     </item>
-                     <item row="0" column="0">
-                      <widget class="QLabel" name="label_32">
-                       <property name="text">
-                        <string>Page Fault Policy</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="6" column="3">
-                      <widget class="QLabel" name="label_33">
-                       <property name="text">
-                        <string>page Units(KB)</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
-                      <widget class="QLabel" name="label_30">
-                       <property name="text">
-                        <string>Bandwidth(MTS)</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="3">
-                      <widget class="QLabel" name="label_31">
-                       <property name="text">
-                        <string>Length(MB)</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="1">
-                      <widget class="QLineEdit" name="edt_dram__bandwidth">
-                       <property name="text">
-                        <string>6400</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="4">
-                      <widget class="QLineEdit" name="edt_dram_length">
-                       <property name="text">
-                        <string>1024</string>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="1" column="1">
-                   <layout class="QHBoxLayout" name="horizontalLayout_6">
-                    <item>
-                     <widget class="QGroupBox" name="groupBox_14">
-                      <property name="title">
-                       <string>Test Parameters</string>
+               <layout class="QGridLayout" name="gridLayout_12">
+                <item row="0" column="0" colspan="2">
+                 <widget class="QGroupBox" name="groupBox_10">
+                  <property name="title">
+                   <string>Host CPU &amp; Cache Parameters</string>
+                  </property>
+                  <layout class="QGridLayout" name="gridLayout_13">
+                   <item row="1" column="4">
+                    <widget class="QLineEdit" name="edt_sram_length">
+                     <property name="text">
+                      <string>1024</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="2" column="1" colspan="2">
+                    <widget class="QLineEdit" name="edt_sram_latency">
+                     <property name="text">
+                      <string>10</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="2" column="0">
+                    <widget class="QLabel" name="label_36">
+                     <property name="text">
+                      <string>Latency(ns)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="5">
+                    <widget class="QLabel" name="label_37">
+                     <property name="text">
+                      <string>page Units(KB)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="6">
+                    <widget class="QLineEdit" name="edt_cpu_sram_page_unit">
+                     <property name="text">
+                      <string>4</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="0" colspan="2">
+                    <widget class="QLabel" name="label_26">
+                     <property name="text">
+                      <string>Zone Access Recognize Architecture</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="2">
+                    <widget class="QComboBox" name="cmb_cpu_architecture">
+                     <item>
+                      <property name="text">
+                       <string>ZTBP</string>
                       </property>
-                      <layout class="QHBoxLayout" name="horizontalLayout_9">
-                       <item>
-                        <widget class="QLabel" name="label_22">
-                         <property name="text">
-                          <string>Rounds(#)</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item>
-                        <widget class="QLineEdit" name="edt_simulation_rounds"/>
-                       </item>
-                      </layout>
-                     </widget>
-                    </item>
-                   </layout>
-                  </item>
-                  <item row="2" column="0" colspan="2">
-                   <widget class="QGroupBox" name="groupBox_12">
-                    <property name="maximumSize">
-                     <size>
-                      <width>16777215</width>
-                      <height>150</height>
-                     </size>
-                    </property>
-                    <property name="title">
-                     <string>Storage Parameters</string>
-                    </property>
-                    <layout class="QVBoxLayout" name="verticalLayout_16">
+                     </item>
                      <item>
-                      <widget class="QGroupBox" name="groupBox_9">
-                       <property name="maximumSize">
-                        <size>
-                         <width>16777215</width>
-                         <height>150</height>
-                        </size>
+                      <property name="text">
+                       <string>NONE</string>
+                      </property>
+                     </item>
+                    </widget>
+                   </item>
+                   <item row="0" column="3">
+                    <widget class="QLabel" name="label_27">
+                     <property name="text">
+                      <string>CPU#</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="0">
+                    <widget class="QLabel" name="label_28">
+                     <property name="text">
+                      <string>Bandwidth(MTS)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="4">
+                    <widget class="QLineEdit" name="edt_cpu_number">
+                     <property name="text">
+                      <string>1</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="3">
+                    <widget class="QLabel" name="label_29">
+                     <property name="text">
+                      <string>Length(KB)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="1" colspan="2">
+                    <widget class="QLineEdit" name="edt_sram_bandwidth">
+                     <property name="text">
+                      <string>8192</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="5">
+                    <widget class="QLabel" name="label_38">
+                     <property name="text">
+                      <string>Page Fault Policy</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="6">
+                    <widget class="QComboBox" name="cmb_cpu_cahce_policy">
+                     <item>
+                      <property name="text">
+                       <string>LRU</string>
+                      </property>
+                     </item>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QGroupBox" name="groupBox_11">
+                  <property name="title">
+                   <string>SSD Cache DRAM Parameters</string>
+                  </property>
+                  <layout class="QGridLayout" name="gridLayout_14">
+                   <item row="6" column="0">
+                    <widget class="QCheckBox" name="chk_slc_mig">
+                     <property name="text">
+                      <string>SLC Level Migration(us)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="6" column="1">
+                    <widget class="QLineEdit" name="edt_slc_read_time">
+                     <property name="text">
+                      <string>7</string>
+                     </property>
+                     <property name="placeholderText">
+                      <string extracomment="SLC Read Time"/>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="2">
+                    <widget class="QLabel" name="label_35">
+                     <property name="text">
+                      <string>Latency(ns)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="0">
+                    <widget class="QLabel" name="label_32">
+                     <property name="text">
+                      <string>Page Fault Policy</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="6" column="3">
+                    <widget class="QLineEdit" name="edt_dram_cache_page_unit">
+                     <property name="text">
+                      <string>4</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="6" column="2">
+                    <widget class="QLabel" name="label_33">
+                     <property name="text">
+                      <string>page Units(KB)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="0">
+                    <widget class="QLabel" name="label_30">
+                     <property name="text">
+                      <string>Bandwidth(MTS)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="1">
+                    <widget class="QLineEdit" name="edt_dram__bandwidth">
+                     <property name="text">
+                      <string>6400</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="1" column="2">
+                    <widget class="QLabel" name="label_31">
+                     <property name="text">
+                      <string>Length(MB)</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="1">
+                    <widget class="QComboBox" name="cmb_dram_page_fault_policy">
+                     <item>
+                      <property name="text">
+                       <string>LRU</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>FIFO</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>OPT</string>
+                      </property>
+                     </item>
+                     <item>
+                      <property name="text">
+                       <string>LFU</string>
+                      </property>
+                     </item>
+                    </widget>
+                   </item>
+                   <item row="1" column="3">
+                    <widget class="QLineEdit" name="edt_dram_length">
+                     <property name="text">
+                      <string>1024</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="0" column="3">
+                    <widget class="QLineEdit" name="edt_dram_latency">
+                     <property name="text">
+                      <string>100</string>
+                     </property>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <layout class="QHBoxLayout" name="horizontalLayout_6">
+                  <item>
+                   <widget class="QGroupBox" name="groupBox_14">
+                    <property name="title">
+                     <string>Test Parameters</string>
+                    </property>
+                    <layout class="QHBoxLayout" name="horizontalLayout_9">
+                     <item>
+                      <widget class="QLabel" name="label_22">
+                       <property name="text">
+                        <string>Rounds(#)</string>
                        </property>
-                       <property name="title">
-                        <string>Result Pattern Modeling</string>
-                       </property>
-                       <layout class="QVBoxLayout" name="verticalLayout_14">
-                        <item>
-                         <widget class="QScrollArea" name="scrollArea_3">
-                          <property name="widgetResizable">
-                           <bool>true</bool>
-                          </property>
-                          <widget class="QWidget" name="scrollAreaWidgetContents_3">
-                           <property name="geometry">
-                            <rect>
-                             <x>0</x>
-                             <y>0</y>
-                             <width>791</width>
-                             <height>89</height>
-                            </rect>
-                           </property>
-                           <layout class="QHBoxLayout" name="horizontalLayout_4">
-                            <item>
-                             <widget class="QTableWidget" name="tbl_pattern_model_result_2"/>
-                            </item>
-                           </layout>
-                          </widget>
-                         </widget>
-                        </item>
-                       </layout>
                       </widget>
                      </item>
                      <item>
-                      <widget class="QPushButton" name="btn_simulation_job_add">
-                       <property name="text">
-                        <string>Simulation Job ADD</string>
-                       </property>
-                      </widget>
+                      <widget class="QLineEdit" name="edt_simulation_rounds"/>
                      </item>
                     </layout>
                    </widget>
                   </item>
                  </layout>
-                </widget>
-                <widget class="QWidget" name="layoutWidget">
-                 <layout class="QHBoxLayout" name="horizontalLayout_12">
+                </item>
+                <item row="2" column="0" colspan="2">
+                 <widget class="QGroupBox" name="groupBox_12">
+                  <property name="maximumSize">
+                   <size>
+                    <width>16777215</width>
+                    <height>150</height>
+                   </size>
+                  </property>
+                  <property name="title">
+                   <string>Storage Parameters</string>
+                  </property>
+                  <layout class="QVBoxLayout" name="verticalLayout_13">
+                   <item>
+                    <widget class="QGroupBox" name="groupBox_9">
+                     <property name="maximumSize">
+                      <size>
+                       <width>16777215</width>
+                       <height>150</height>
+                      </size>
+                     </property>
+                     <property name="title">
+                      <string>Result Pattern Modeling</string>
+                     </property>
+                     <layout class="QVBoxLayout" name="verticalLayout_14">
+                      <item>
+                       <widget class="QScrollArea" name="scrollArea_3">
+                        <property name="widgetResizable">
+                         <bool>true</bool>
+                        </property>
+                        <widget class="QWidget" name="scrollAreaWidgetContents_3">
+                         <property name="geometry">
+                          <rect>
+                           <x>0</x>
+                           <y>0</y>
+                           <width>791</width>
+                           <height>89</height>
+                          </rect>
+                         </property>
+                         <layout class="QHBoxLayout" name="horizontalLayout_4">
+                          <item>
+                           <widget class="QTableWidget" name="tbl_pattern_model_result_2"/>
+                          </item>
+                         </layout>
+                        </widget>
+                       </widget>
+                      </item>
+                     </layout>
+                    </widget>
+                   </item>
+                  </layout>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_12">
+                <item>
+                 <layout class="QVBoxLayout" name="verticalLayout_11">
                   <item>
                    <widget class="QPushButton" name="btn_simulation_execute">
                     <property name="font">
@@ -997,35 +1004,49 @@ Execute</string>
                    </widget>
                   </item>
                   <item>
-                   <widget class="QTabWidget" name="tabWidget_7">
-                    <property name="currentIndex">
-                     <number>0</number>
+                   <widget class="QPushButton" name="btn_simulation_job_add">
+                    <property name="text">
+                     <string>Simulation Job ADD</string>
                     </property>
-                    <widget class="QWidget" name="tab_23">
-                     <attribute name="title">
-                      <string>Job List</string>
-                     </attribute>
-                     <layout class="QVBoxLayout" name="verticalLayout_18">
-                      <item>
-                       <widget class="QTableWidget" name="tbl_sim_model_job_list"/>
-                      </item>
-                     </layout>
-                    </widget>
-                    <widget class="QWidget" name="tab_24">
-                     <attribute name="title">
-                      <string>Result</string>
-                     </attribute>
-                     <layout class="QHBoxLayout" name="horizontalLayout_8">
-                      <item>
-                       <widget class="QPlainTextEdit" name="txt_res_simulation"/>
-                      </item>
-                     </layout>
-                    </widget>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="btn_simulation_job_del">
+                    <property name="text">
+                     <string>Simulation Job DEL</string>
+                    </property>
                    </widget>
                   </item>
                  </layout>
-                </widget>
-               </widget>
+                </item>
+                <item>
+                 <widget class="QTabWidget" name="tabWidget_7">
+                  <property name="currentIndex">
+                   <number>0</number>
+                  </property>
+                  <widget class="QWidget" name="tab_23">
+                   <attribute name="title">
+                    <string>Job List</string>
+                   </attribute>
+                   <layout class="QVBoxLayout" name="verticalLayout_18">
+                    <item>
+                     <widget class="QTableWidget" name="tbl_sim_model_job_list"/>
+                    </item>
+                   </layout>
+                  </widget>
+                  <widget class="QWidget" name="tab_24">
+                   <attribute name="title">
+                    <string>Result</string>
+                   </attribute>
+                   <layout class="QHBoxLayout" name="horizontalLayout_8">
+                    <item>
+                     <widget class="QPlainTextEdit" name="txt_res_simulation"/>
+                    </item>
+                   </layout>
+                  </widget>
+                 </widget>
+                </item>
+               </layout>
               </item>
              </layout>
             </widget>

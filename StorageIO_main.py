@@ -22,7 +22,7 @@ import pyqtgraph as pg
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(1381, 877)
+        MainWindow.resize(1337, 877)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.horizontalLayout_2 = QtWidgets.QHBoxLayout(self.centralwidget)

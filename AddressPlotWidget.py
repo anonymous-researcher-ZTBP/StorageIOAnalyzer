@@ -9,7 +9,8 @@ import numpy as np
 
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.model_selection import KFold
+from sklearn.metrics import silhouette_score
 
 class AddressPlotWidget(pg.PlotWidget):
     raw_item = ''
@@ -47,6 +48,58 @@ class AddressPlotWidget(pg.PlotWidget):
         region = self.latency_marker.getRegion()
         return
 
+    def kfold_operation(self,scale_data):
+
+        # Assuming X is your dataset with 50000 samples
+        # For demonstration purposes, we're generating random data
+        X = scale_data
+        # Define k-fold cross-validation
+        kf = KFold(n_splits=5)
+
+        # Placeholder for the best parameters
+        best_eps = None
+        best_min_samples = None
+        best_silhouette = -1
+
+        # Parameter grid (These ranges are arbitrary for demonstration and should be adjusted based on EDA)
+        eps_values = np.arange(0.01, 0.05, 0.01)  # Example range for eps
+        min_samples_values = np.arange(20, 50, 10)  # Example range for min_samples
+        prgress = 0
+        # Iterate over all possible combinations of eps and min_samples
+        for eps in eps_values:
+            for min_samples in min_samples_values:
+                silhouette_avg = []
+                # Perform k-fold CV
+                for train_index, test_index in kf.split(X):
+                    # Split the data into training and testing sets
+                    X_train, X_test = X[train_index], X[test_index]
+
+                    # Apply DBSCAN to the training set
+                    db = DBSCAN(eps=eps, min_samples=min_samples).fit(X_train)
+                    test_labels = db.fit_predict(X_test)
+                    prgress += 1
+                    self.progressChanged.emit(round((prgress / (len(eps_values) * len(min_samples_values) * 5)) * 100))
+
+                    # Evaluate the clustering performance on the test set
+                    # Silhouette score can only be computed if there are more than one cluster present, and not noise
+                    if len(np.unique(test_labels)) > 1:
+                        score = silhouette_score(X_test, test_labels)
+                        silhouette_avg.append(score)
+
+                # Calculate the average silhouette score for the current parameters
+                if silhouette_avg:
+                    silhouette_avg_score = np.mean(silhouette_avg)
+                    # Update best parameters if current ones are better
+                    if silhouette_avg_score > best_silhouette:
+                        best_eps = eps
+                        best_min_samples = min_samples
+                        best_silhouette = silhouette_avg_score
+
+        # Print the best parameters found
+        print(f'Best eps: {best_eps}, Best min_samples: {best_min_samples}, Best silhouette score: {best_silhouette}')
+
+        return best_eps,best_min_samples
+
     def test_pattern_recognization(self,status_bar,txt):
         self.progressChanged.connect(status_bar)
         if len(self.raw_item) == 0:
@@ -71,6 +124,7 @@ class AddressPlotWidget(pg.PlotWidget):
                     val_eps = 0.05
                     val_min_samples = 20
 
+                # val_eps, val_min_samples = self.kfold_operation(scale_data)
                 dbscan = DBSCAN(eps=val_eps, min_samples=val_min_samples)
                 clusters = dbscan.fit_predict(scale_data)
 
@@ -111,6 +165,7 @@ class AddressPlotWidget(pg.PlotWidget):
                 # status_bar.setValue(0)
                 self.progressChanged.emit(0)
             threshould_intensive_zone = scale_data.shape[0] / 100
+
             return sorted([(k, v) for k, v in zone_freq_info.items() if v > threshould_intensive_zone ], key=lambda x: x[1], reverse=True)
 
     def show_plot_item(self,*args):

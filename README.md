@@ -2,7 +2,7 @@
 
 Storage IO Analyzer is a Python-based tool with a QT interface designed to analyze and visualize storage I/O operations. This tool helps in understanding and optimizing storage performance by providing detailed insights into I/O patterns and behaviors, particularly focused on NAND-based storage systems.
 
-**Note: This is a preliminary version of the tool. For inquiries or support, please contact sanghune.jung@gmail.com.**
+**Note: This is a preliminary version of the tool. For inquiries or support, please contact.**
 
 ## Features
 
@@ -25,7 +25,7 @@ Storage IO Analyzer is a Python-based tool with a QT interface designed to analy
 
 1. Clone the repository:
    ```
-   git clone https://github.com/sanghunejung/StorageIOAnalyzer.git
+   git clone https://github.com/anonymous-researcher-ZTBP/StorageIOAnalyzer.git
    cd StorageIOAnalyzer
    ```
 
@@ -51,7 +51,7 @@ Storage IO Analyzer is a Python-based tool with a QT interface designed to analy
 
 ## Contributing
 
-As this is a preliminary version, we are not actively seeking contributions at this time. However, feedback and suggestions are welcome. Please contact sanghune.jung@gmail.com with any ideas or issues.
+As this is a preliminary version, we are not actively seeking contributions at this time. However, feedback and suggestions are welcome. Please contact.com with any ideas or issues.
 
 ## License
 

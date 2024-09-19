@@ -59,7 +59,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-For any questions, issues, or support needs, please email sanghune.jung@gmail.com. As this is a preliminary version, we appreciate your patience and feedback as we continue to improve the tool.
+For any questions, issues, or support needs, please email " "  As this is a preliminary version, we appreciate your patience and feedback as we continue to improve the tool.
 
 ## Acknowledgments
 
